@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sixgillkrahs/backend-business-chat/internal/config"
+	"github.com/sixgillkrahs/backend-business-chat/internal/interface/http/middleware"
 	"github.com/sixgillkrahs/backend-business-chat/pkg/utils"
 )
 
@@ -15,7 +16,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		gin.SetMode(gin.DebugMode)
 	}
 	r := gin.New()
-	r.Use(utils.GinLogger(), utils.GinRecovery())
+	r.Use(utils.GinLogger(), utils.GinRecovery(), middleware.Cors(cfg))
 
 	apiV1 := r.Group("/v1/api")
 	{
