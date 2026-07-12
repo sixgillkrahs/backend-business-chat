@@ -13,18 +13,15 @@ import (
 var Log *zap.Logger
 
 func InitLogger() {
-	// Cấu hình xoay vòng file bằng Lumberjack
 	fileWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   "./logs/app.log", // Đường dẫn file log
-		MaxSize:    10,               // Dung lượng file tối đa (MB) trước khi cắt
-		MaxBackups: 5,                // Giữ tối đa 5 file log cũ
-		MaxAge:     30,               // Giữ log tối đa 30 ngày
-		Compress:   true,             // Nén file log cũ (.gz)
+		MaxSize:    10,
+		MaxBackups: 5,
+		MaxAge:     30,
+		Compress:   true,
 	})
-	// Format log (JSON cho production, Console cho local)
 	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder // Định dạng thời gian dễ đọc
-	// Ghi song song ra file (JSON) và Console
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	core := zapcore.NewTee(
 		zapcore.NewCore(zapcore.NewJSONEncoder(encoderConfig), fileWriter, zap.InfoLevel),
 		zapcore.NewCore(zapcore.NewConsoleEncoder(encoderConfig), zapcore.AddSync(os.Stdout), zap.DebugLevel),
@@ -32,7 +29,6 @@ func InitLogger() {
 	Log = zap.New(core, zap.AddCaller())
 }
 
-// GinLogger returns a gin.HandlerFunc that logs requests using Zap
 func GinLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -55,7 +51,6 @@ func GinLogger() gin.HandlerFunc {
 	}
 }
 
-// GinRecovery returns a gin.HandlerFunc that recovers from panics and logs them using Zap
 func GinRecovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {

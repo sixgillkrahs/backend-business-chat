@@ -20,8 +20,8 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.Server.Env != "develop" {
 		t.Errorf("expected default server env 'develop', got '%s'", cfg.Server.Env)
 	}
-	if cfg.Mongo.Database != "business_chat" {
-		t.Errorf("expected default mongo database 'business_chat', got '%s'", cfg.Mongo.Database)
+	if cfg.Postgres.Database != "business_chat" {
+		t.Errorf("expected default mongo database 'business_chat', got '%s'", cfg.Postgres.Database)
 	}
 }
 
@@ -30,8 +30,8 @@ func TestLoadConfig_EnvOverride(t *testing.T) {
 	t.Setenv("APP_SERVER_PORT", "9090")
 	t.Setenv("APP_SERVER_MODE", "release")
 	t.Setenv("APP_SERVER_ENV", "production")
-	t.Setenv("APP_MONGO_DATABASE", "prod_db")
-	t.Setenv("APP_MONGO_URI", "mongodb://admin:secret@mongo-host:27017")
+	t.Setenv("APP_POSTGRES_DATABASE", "prod_db")
+	t.Setenv("APP_POSTGRES_URI", "mongodb://admin:secret@mongo-host:27017")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -47,11 +47,11 @@ func TestLoadConfig_EnvOverride(t *testing.T) {
 	if cfg.Server.Env != "production" {
 		t.Errorf("expected env overridden server env 'production', got '%s'", cfg.Server.Env)
 	}
-	if cfg.Mongo.Database != "prod_db" {
-		t.Errorf("expected env overridden mongo database 'prod_db', got '%s'", cfg.Mongo.Database)
+	if cfg.Postgres.Database != "prod_db" {
+		t.Errorf("expected env overridden mongo database 'prod_db', got '%s'", cfg.Postgres.Database)
 	}
-	if cfg.Mongo.URI != "mongodb://admin:secret@mongo-host:27017" {
-		t.Errorf("expected env overridden mongo URI, got '%s'", cfg.Mongo.URI)
+	if cfg.Postgres.URI != "mongodb://admin:secret@mongo-host:27017" {
+		t.Errorf("expected env overridden mongo URI, got '%s'", cfg.Postgres.URI)
 	}
 }
 
@@ -77,8 +77,8 @@ func TestLoadConfig_ValidationErrors(t *testing.T) {
 			envs: map[string]string{"APP_SERVER_ENV": "local"},
 		},
 		{
-			name: "empty mongo database",
-			envs: map[string]string{"APP_MONGO_DATABASE": ""},
+			name: "empty postgres database",
+			envs: map[string]string{"APP_POSTGRES_DATABASE": ""},
 		},
 	}
 
@@ -123,7 +123,7 @@ func TestConfig_GetMaskedMongoURI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				Mongo: MongoConfig{
+				Postgres: PostgresConfig{
 					URI: tt.uri,
 				},
 			}

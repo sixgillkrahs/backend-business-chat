@@ -53,8 +53,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.port", 8000)
 	v.SetDefault("server.mode", "debug")
 	v.SetDefault("server.env", "develop")
-	v.SetDefault("mongo.uri", "mongodb://localhost:27017")
-	v.SetDefault("mongo.database", "business_chat")
+	v.SetDefault("server.cors.allowOrigins", "http://localhost:3000")
+	v.SetDefault("postgres.uri", "postgres://postgres:postgres@localhost:5432/business_chat?sslmode=disable")
+	v.SetDefault("postgres.database", "business_chat")
 }
 
 func bindEnvs(v *viper.Viper, iface interface{}, parts ...string) {
@@ -103,10 +104,21 @@ func validateConfig(cfg *Config) error {
 }
 
 func (c *Config) GetMaskedMongoURI() string {
-	if !strings.HasPrefix(c.Mongo.URI, "mongodb://") && !strings.HasPrefix(c.Mongo.URI, "mongodb+srv://") {
+	if !strings.HasPrefix(c.Postgres.URI, "mongodb://") && !strings.HasPrefix(c.Postgres.URI, "mongodb+srv://") {
 		return "***"
 	}
-	u, err := url.Parse(c.Mongo.URI)
+	u, err := url.Parse(c.Postgres.URI)
+	if err != nil {
+		return "***"
+	}
+	if u.User != nil {
+		u.User = url.UserPassword("username_masked", "password_masked")
+	}
+	return u.String()
+}
+
+func (c *Config) GetMaskedPostgresURI() string {
+	u, err := url.Parse(c.Postgres.URI)
 	if err != nil {
 		return "***"
 	}

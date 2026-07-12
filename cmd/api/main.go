@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
 	"github.com/sixgillkrahs/backend-business-chat/internal/config"
+	"github.com/sixgillkrahs/backend-business-chat/internal/infrastructure/database"
 	"github.com/sixgillkrahs/backend-business-chat/pkg/utils"
 )
 
@@ -14,6 +16,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	if err := database.RunMigrations(cfg.Postgres.URI); err != nil {
+		log.Fatalf("Failed to run database migrations: %v", err)
+	}
+
+	ctx := context.Background()
+	dbConn, err := database.NewPostgresConnection(ctx, cfg.Postgres.URI)
+	if err != nil {
+		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
+	}
+	defer dbConn.Close()
+	log.Println("PostgreSQL connection pool initialized and warmed up.")
 
 	app := SetupRouter(cfg)
 
