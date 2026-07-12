@@ -7,6 +7,7 @@ import (
 
 	"github.com/sixgillkrahs/backend-business-chat/internal/config"
 	"github.com/sixgillkrahs/backend-business-chat/internal/infrastructure/database"
+	"github.com/sixgillkrahs/backend-business-chat/internal/infrastructure/redis"
 	"github.com/sixgillkrahs/backend-business-chat/pkg/utils"
 )
 
@@ -16,11 +17,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
-
 	if err := database.RunMigrations(cfg.Postgres.URI); err != nil {
 		log.Fatalf("Failed to run database migrations: %v", err)
 	}
-
 	ctx := context.Background()
 	dbConn, err := database.NewPostgresConnection(ctx, cfg.Postgres.URI)
 	if err != nil {
@@ -28,7 +27,12 @@ func main() {
 	}
 	defer dbConn.Close()
 	log.Println("PostgreSQL connection pool initialized and warmed up.")
-
+	rdb, err := redis.NewRedisConnection(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	defer rdb.Close()
+	log.Println("Redis client initialized and warmed up.")
 	app := SetupRouter(cfg)
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

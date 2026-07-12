@@ -56,6 +56,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.cors.allowOrigins", "http://localhost:3000")
 	v.SetDefault("postgres.uri", "postgres://postgres:postgres@localhost:5432/business_chat?sslmode=disable")
 	v.SetDefault("postgres.database", "business_chat")
+	v.SetDefault("redis.addr", "localhost:6379")
+	v.SetDefault("redis.password", "")
+	v.SetDefault("redis.db", 0)
 }
 
 func bindEnvs(v *viper.Viper, iface interface{}, parts ...string) {
