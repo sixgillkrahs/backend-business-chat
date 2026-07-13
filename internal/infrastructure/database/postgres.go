@@ -12,6 +12,27 @@ type PostgresDB struct {
 	Pool *pgxpool.Pool
 }
 
+var globalDB *PostgresDB
+
+type contextKey string
+
+const dbContextKey contextKey = "db_conn"
+
+func WithDB(ctx context.Context, db *PostgresDB) context.Context {
+	return context.WithValue(ctx, dbContextKey, db)
+}
+
+func GetDB(ctx context.Context) *PostgresDB {
+	if db, ok := ctx.Value(dbContextKey).(*PostgresDB); ok {
+		return db
+	}
+	return nil
+}
+
+func GetGlobalDB() *PostgresDB {
+	return globalDB
+}
+
 func NewPostgresConnection(ctx context.Context, connStr string) (*PostgresDB, error) {
 	config, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
@@ -28,7 +49,9 @@ func NewPostgresConnection(ctx context.Context, connStr string) (*PostgresDB, er
 	if err := pool.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("database connection failed: %w", err)
 	}
-	return &PostgresDB{Pool: pool}, nil
+	db := &PostgresDB{Pool: pool}
+	globalDB = db
+	return db, nil
 }
 
 func (db *PostgresDB) Close() {

@@ -33,7 +33,7 @@ func main() {
 	}
 	defer rdb.Close()
 	log.Println("Redis client initialized and warmed up.")
-	app := SetupRouter(cfg)
+	app := SetupRouter(cfg, dbConn)
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	if err := app.Run(addr); err != nil {

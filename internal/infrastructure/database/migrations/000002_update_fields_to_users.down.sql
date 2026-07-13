@@ -1,0 +1,11 @@
+ALTER TABLE users DROP COLUMN full_name;
+ALTER TABLE users DROP COLUMN avatar_url;
+ALTER TABLE users DROP COLUMN phone_number;
+ALTER TABLE users DROP COLUMN address;
+ALTER TABLE users DROP COLUMN created_by;
+ALTER TABLE users DROP COLUMN updated_by;
+ALTER TABLE users DROP COLUMN updated_at;
+ALTER TABLE users DROP COLUMN deleted_by;
+ALTER TABLE users DROP COLUMN deleted_at;
+ALTER TABLE users DROP COLUMN is_active;
+ALTER TABLE users DROP COLUMN is_deleted;
