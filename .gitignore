@@ -1,4 +1,6 @@
 logs
 api.exe
 config.*
+!**/config.go
 .env
+tmp/
