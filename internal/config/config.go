@@ -23,7 +23,10 @@ type PostgresConfig struct {
 }
 
 type RedisConfig struct {
-	Addr     string `mapstructure:"addr" validate:"required"`
-	Password string `mapstructure:"password"`
-	DB       int    `mapstructure:"db" validate:"min=0"`
+	Addr          string   `mapstructure:"addr" validate:"required"`
+	Password      string   `mapstructure:"password"`
+	DB            int      `mapstructure:"db" validate:"min=0"`
+	UseSentinel   bool     `mapstructure:"useSentinel"`
+	MasterName    string   `mapstructure:"masterName"`
+	SentinelAddrs []string `mapstructure:"sentinelAddrs"`
 }

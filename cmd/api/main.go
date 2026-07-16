@@ -27,7 +27,7 @@ func main() {
 	}
 	defer dbConn.Close()
 	log.Println("PostgreSQL connection pool initialized and warmed up.")
-	rdb, err := redis.NewRedisConnection(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+	rdb, err := redis.NewRedisConnection(cfg.Redis)
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}

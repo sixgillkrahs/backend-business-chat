@@ -6,25 +6,39 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/sixgillkrahs/backend-business-chat/internal/config"
 )
 
 type RedisClient struct {
 	Client *redis.Client
 }
 
-func NewRedisConnection(addr string, password string, db int) (*RedisClient, error) {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:            addr,
-		Password:        password,
-		DB:              db,
-		PoolSize:        50,              // Số lượng kết nối tối đa trong pool
-		MinIdleConns:    10,              // Số kết nối rảnh luôn duy trì
-		DialTimeout:     5 * time.Second, // Thời gian chờ tối đa khi kết nối
-		ReadTimeout:     3 * time.Second, // Thời gian chờ đọc dữ liệu
-		WriteTimeout:    3 * time.Second, // Thời gian chờ ghi dữ liệu
-		ConnMaxIdleTime: 5 * time.Minute, // Đóng kết nối rảnh sau 5 phút
-	})
-
+func NewRedisConnection(cfg config.RedisConfig) (*RedisClient, error) {
+	var rdb *redis.Client
+	if cfg.UseSentinel {
+		rdb = redis.NewFailoverClient(&redis.FailoverOptions{
+			MasterName:    cfg.MasterName,
+			SentinelAddrs: cfg.SentinelAddrs,
+			Password:      cfg.Password,
+			DB:            cfg.DB,
+			PoolSize:      50,
+			MinIdleConns:  10,
+			DialTimeout:   5 * time.Second,
+			ReadTimeout:   3 * time.Second,
+			WriteTimeout:  3 * time.Second,
+		})
+	} else {
+		rdb = redis.NewClient(&redis.Options{
+			Addr:         cfg.Addr,
+			Password:     cfg.Password,
+			DB:           cfg.DB,
+			PoolSize:     50,
+			MinIdleConns: 10,
+			DialTimeout:  5 * time.Second,
+			ReadTimeout:  3 * time.Second,
+			WriteTimeout: 3 * time.Second,
+		})
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := rdb.Ping(ctx).Err(); err != nil {
