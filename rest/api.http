@@ -1,0 +1,7 @@
+@baseUrl = http://localhost:8081
+
+### 1. Ping Server
+GET {{baseUrl}}/v1/api/ping HTTP/1.1
+
+### 2. Get All Auth Actions
+GET {{baseUrl}}/v1/api/auth/actions HTTP/1.1
