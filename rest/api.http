@@ -8,3 +8,6 @@ GET {{baseUrl}}/v1/api/auth/actions HTTP/1.1
 
 ### 3. Get All Resources
 GET {{baseUrl}}/v1/api/auth/resources HTTP/1.1
+
+### 4. Get All Policies
+GET {{baseUrl}}/v1/api/auth/policies HTTP/1.1

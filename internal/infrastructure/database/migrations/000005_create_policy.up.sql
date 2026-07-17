@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS policies (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    action_id INT NOT NULL,
+    resource_id INT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_policy_action FOREIGN KEY (action_id) REFERENCES actions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_policy_resource FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE
+);

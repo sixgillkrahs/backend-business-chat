@@ -337,3 +337,85 @@ func (r *baseRepository[T]) Delete(ctx context.Context, id int64) error {
 
 	return nil
 }
+
+func (r *baseRepository[T]) Count(ctx context.Context) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("database connection is not initialized")
+	}
+	var item T
+	tableName := getTableName(item)
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
+
+	var count int64
+	err := r.db.Pool.QueryRow(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count records: %w", err)
+	}
+	return count, nil
+}
+
+// GetPage returns a paginated list of records of type T.
+func (r *baseRepository[T]) GetPage(ctx context.Context, model T, offset, limit int) ([]T, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("database connection is not initialized")
+	}
+
+	tableName := getTableName(model)
+	t := reflect.TypeOf(model)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	var columns []string
+	var fieldIndexes []int
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+		dbTag := field.Tag.Get("db")
+		if dbTag == "-" {
+			continue
+		}
+		if dbTag == "" {
+			dbTag = field.Tag.Get("json")
+		}
+		if dbTag == "" || dbTag == "-" {
+			dbTag = strings.ToLower(field.Name)
+		} else {
+			dbTag = strings.Split(dbTag, ",")[0]
+		}
+		columns = append(columns, dbTag)
+		fieldIndexes = append(fieldIndexes, i)
+	}
+
+	query := fmt.Sprintf("SELECT %s FROM %s LIMIT $1 OFFSET $2", strings.Join(columns, ", "), tableName)
+
+	rows, err := r.db.Pool.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+
+	var results []T
+	for rows.Next() {
+		var item T
+		val := reflect.ValueOf(&item).Elem()
+
+		scanDest := make([]interface{}, len(columns))
+		for idx, fieldIdx := range fieldIndexes {
+			scanDest[idx] = val.Field(fieldIdx).Addr().Interface()
+		}
+
+		if err := rows.Scan(scanDest...); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+		results = append(results, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return results, nil
+}

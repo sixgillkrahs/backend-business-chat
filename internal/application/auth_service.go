@@ -9,10 +9,11 @@ import (
 type AuthService struct {
 	authRepo      domain.ActionRepository
 	resourcesRepo domain.ResourceRepository
+	policyRepo    domain.PolicyRepository
 }
 
-func NewAuthService(authRepo domain.ActionRepository, resourcesRepo domain.ResourceRepository) *AuthService {
-	return &AuthService{authRepo: authRepo, resourcesRepo: resourcesRepo}
+func NewAuthService(authRepo domain.ActionRepository, resourcesRepo domain.ResourceRepository, policyRepo domain.PolicyRepository) *AuthService {
+	return &AuthService{authRepo: authRepo, resourcesRepo: resourcesRepo, policyRepo: policyRepo}
 }
 
 func (s *AuthService) GetAllActions(ctx context.Context) ([]domain.Action, error) {
@@ -31,4 +32,19 @@ func (s *AuthService) InitDefaultResources(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (s *AuthService) GetPolicies(ctx context.Context, page, limit int) ([]domain.Policy, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+	return s.policyRepo.GetPoliciesPage(ctx, offset, limit)
+}
+
+func (s *AuthService) CountPolicies(ctx context.Context) (int64, error) {
+	return s.policyRepo.Count(ctx)
 }

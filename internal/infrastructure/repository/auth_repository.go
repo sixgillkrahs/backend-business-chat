@@ -63,3 +63,21 @@ func (r *resourceRepository) Upsert(ctx context.Context, resource *domain.Resour
 	}
 	return nil
 }
+
+type policyRepository struct {
+	baseRepository[domain.Policy]
+}
+
+func NewPolicyRepository(db *database.PostgresDB) domain.PolicyRepository {
+	return &policyRepository{
+		baseRepository: newBaseRepository[domain.Policy](db),
+	}
+}
+
+func (r *policyRepository) GetPoliciesPage(ctx context.Context, offset, limit int) ([]domain.Policy, error) {
+	return r.baseRepository.GetPage(ctx, domain.Policy{}, offset, limit)
+}
+
+func (r *policyRepository) Count(ctx context.Context) (int64, error) {
+	return r.baseRepository.Count(ctx)
+}

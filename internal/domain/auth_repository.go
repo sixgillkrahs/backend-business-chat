@@ -10,3 +10,8 @@ type ResourceRepository interface {
 	GetAllResources(ctx context.Context) ([]Resource, error)
 	Upsert(ctx context.Context, resource *Resource) error
 }
+
+type PolicyRepository interface {
+	GetPoliciesPage(ctx context.Context, offset, limit int) ([]Policy, error)
+	Count(ctx context.Context) (int64, error)
+}
