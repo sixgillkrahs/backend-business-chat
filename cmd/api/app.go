@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +34,16 @@ func SetupRouter(cfg *config.Config, db *database.PostgresDB) *gin.Engine {
 			})
 		})
 		authRepo := repository.NewAuthRepository(db)
-		authService := application.NewAuthService(authRepo)
+		resourcesRepo := repository.NewResourceRepository(db)
+		authService := application.NewAuthService(authRepo, resourcesRepo)
+
+		// Auto-initialize default resources on app startup
+		if err := authService.InitDefaultResources(context.Background()); err != nil {
+			log.Printf("Warning: Failed to auto-initialize default resources: %v", err)
+		} else {
+			log.Println("Auto-initialized default resources successfully.")
+		}
+
 		authHandler := handlers.NewAuthHandler(authService)
 		routes.AuthRoutes(apiV1, authHandler)
 	}

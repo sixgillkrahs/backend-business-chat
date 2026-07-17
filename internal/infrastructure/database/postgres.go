@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -42,6 +43,10 @@ func NewPostgresConnection(ctx context.Context, connStr string) (*PostgresDB, er
 	config.MinConns = 5                       // Số kết nối rảnh luôn duy trì
 	config.MaxConnLifetime = 30 * time.Minute // Thời gian sống tối đa của 1 kết nối
 	config.MaxConnIdleTime = 5 * time.Minute  // Thời gian rảnh tối đa trước khi tự đóng
+	
+	// Disable prepared statements caching for PgBouncer compatibility
+	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create connection pool: %w", err)

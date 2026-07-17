@@ -24,3 +24,12 @@ func (h *AuthHandler) ListActions(c *gin.Context) {
 	}
 	utils.Success(c, actions)
 }
+
+func (h *AuthHandler) ListResources(c *gin.Context) {
+	resources, err := h.AuthService.GetAllResources(c.Request.Context())
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	utils.Success(c, resources)
+}
