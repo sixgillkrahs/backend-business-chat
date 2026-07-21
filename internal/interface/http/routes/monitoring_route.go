@@ -9,5 +9,6 @@ func MonitoringRouter(r *gin.RouterGroup, monitoringHandler *handlers.Monitoring
 	api := r.Group("/monitoring")
 	{
 		api.GET("/metrics", monitoringHandler.GetMetrics)
+		api.POST("/alerts", monitoringHandler.ReceiveAlerts)
 	}
 }

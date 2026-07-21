@@ -2,17 +2,15 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
-# Uncomment this section once Alertmanager is running
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets:
-#             - alertmanager:9093
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
 
-# Uncomment this section once rule files are created
-# rule_files:
-#   - "rules/recording_rules.yml"
-#   - "rules/alerting_rules.yml"
+rule_files:
+  - "rules/alerting_rules.yml"
+  - "rules/recording_rules.yml"
 
 scrape_configs:
   - job_name: "backend-business"

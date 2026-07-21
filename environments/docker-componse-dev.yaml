@@ -190,6 +190,7 @@ services:
     container_name: business-chat-prometheus
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./rules:/etc/prometheus/rules
       - promdata:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -200,6 +201,30 @@ services:
       - "9090:9090"
     depends_on:
       - app
+      - alertmanager
+    restart: always
+    networks:
+      - business-chat-net
+
+  # --- Alertmanager Service ---
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: business-chat-alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.tmpl:ro
+    environment:
+      - TELEGRAM_BOT_TOKEN=
+      - TELEGRAM_CHAT_ID=
+    entrypoint:
+      - sh
+      - -c
+      - |
+        cp /etc/alertmanager/alertmanager.tmpl /tmp/alertmanager.yml
+        sed -i "s/TELEGRAM_BOT_TOKEN_PLACEHOLDER/$${TELEGRAM_BOT_TOKEN}/g" /tmp/alertmanager.yml
+        sed -i "s/999999999/$${TELEGRAM_CHAT_ID}/g" /tmp/alertmanager.yml
+        exec /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
     restart: always
     networks:
       - business-chat-net

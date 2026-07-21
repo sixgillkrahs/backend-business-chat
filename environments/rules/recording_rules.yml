@@ -1,0 +1,22 @@
+groups:
+  - name: go_app_rules
+    rules:
+      - record: job:http_requests_total:rate5m
+        expr: rate(http_requests_total{job="backend-business"}[5m])
+
+      - record: job:http_request_duration_seconds:p95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="backend-business"}[5m])) by (le))
+
+      - record: job:errors_total:rate5m
+        expr: sum(rate(http_requests_total{status=~"5..",job="backend-business"}[5m]))
+
+      - record: job:http_errors_total:rate5m
+        expr: sum(rate(http_requests_total{status=~"5..",job="backend-business"}[5m])) by (status, route)
+
+  - name: go_resources
+    rules:
+      - record: job:app_cpu_usage:rate1m
+        expr: rate(process_cpu_seconds_total{job="backend-business"}[1m]) * 100
+
+      - record: job:app_memory_usage:bytes
+        expr: process_resident_memory_bytes{job="backend-business"}

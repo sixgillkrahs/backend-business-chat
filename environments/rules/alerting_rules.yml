@@ -1,0 +1,44 @@
+groups:
+  - name: cpu_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="backend-business"}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU Usage detected"
+          description: "CPU Usage is above 80% for 5 minutes"
+
+  - name: memory_alerts
+    rules:
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job="backend-business"} > 524288000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Memory Usage detected"
+          description: "Memory Usage (Resident Set Size) is above 500MB for 5 minutes"
+
+  - name: error_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5..",job="backend-business"}[5m])) > 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High Error Rate detected"
+          description: "5xx error rate is above 1 req/sec for 2 minutes"
+
+  - name: go_alerts
+    rules:
+      - alert: HighRequestLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="backend-business"}[5m])) by (le)) > 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency on {{ $labels.instance }}"
+          description: "Request latency is above 1s (current value: {{ $value }}s)"

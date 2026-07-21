@@ -1,0 +1,39 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'combined-alerts'
+  group_by: 
+    - alertname
+    - job
+    - instance
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+
+receivers:
+  - name: "combined-alerts"
+    # Sends alerts to Go Backend API
+    webhook_configs:
+      - url: "http://app:8081/api/monitoring/alerts"
+        send_resolved: true
+    
+    # Sends alerts to Telegram Bot
+    # Note: Placeholders are substituted at runtime by Docker Compose entrypoint
+    telegram_configs:
+      - bot_token: 'TELEGRAM_BOT_TOKEN_PLACEHOLDER'
+        chat_id: 999999999
+        send_resolved: true
+        parse_mode: 'HTML'
+        message: |
+          <b>[ALERTMANAGER] Notification</b>
+          <b>Status:</b> {{ if eq .Status "firing" }}🔥 <b>FIRING</b>{{ else }}✅ <b>RESOLVED</b>{{ end }}
+          <b>Alert Name:</b> {{ .CommonLabels.alertname }}
+          <b>Severity:</b> <code>{{ .CommonLabels.severity }}</code>
+          <b>Description:</b> {{ .CommonAnnotations.description }}
+          
+          <b>Details:</b>
+          {{ range .Alerts }}
+            • <b>Instance:</b> <code>{{ .Labels.instance }}</code>
+            • <b>Started At:</b> <code>{{ .StartsAt }}</code>
+          {{ end }}
