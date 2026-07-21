@@ -23,7 +23,7 @@ func SetupRouter(cfg *config.Config, db *database.PostgresDB) *gin.Engine {
 		gin.SetMode(gin.DebugMode)
 	}
 	r := gin.New()
-	r.Use(utils.GinLogger(), utils.GinRecovery(), middleware.Cors(cfg))
+	r.Use(utils.GinLogger(), utils.GinRecovery(), middleware.Cors(cfg), middleware.PrometheusMiddleware())
 
 	apiV1 := r.Group("/v1/api")
 	{
@@ -47,6 +47,11 @@ func SetupRouter(cfg *config.Config, db *database.PostgresDB) *gin.Engine {
 
 		authHandler := handlers.NewAuthHandler(authService)
 		routes.AuthRoutes(apiV1, authHandler)
+	}
+	mr := r.Group("api")
+	{
+		monitoringHandler := handlers.NewMonitoringHandler()
+		routes.MonitoringRouter(mr, monitoringHandler)
 	}
 	return r
 }

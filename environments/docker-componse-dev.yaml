@@ -1,0 +1,215 @@
+version: '3.8'
+
+services:
+  # --- Database Service (Postgres) ---
+  postgres:
+    image: postgres:15-alpine
+    container_name: business-chat-db-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: business_chat
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d business_chat"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - business-chat-net
+
+  # --- Redis Master & Replicas ---
+  redis-master:
+    image: redis:7-alpine
+    container_name: business-chat-redis-master
+    ports:
+      - "6379:6379"
+    command: redis-server
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+    networks:
+      - business-chat-net
+
+  redis-replica-1:
+    image: redis:7-alpine
+    container_name: business-chat-redis-replica-1
+    ports:
+      - "6380:6379"
+    command: redis-server --replicaof redis-master 6379
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    restart: always
+    networks:
+      - business-chat-net
+
+  redis-replica-2:
+    image: redis:7-alpine
+    container_name: business-chat-redis-replica-2
+    ports:
+      - "6381:6379"
+    command: redis-server --replicaof redis-master 6379
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    restart: always
+    networks:
+      - business-chat-net
+
+  # --- Redis Sentinels ---
+  redis-sentinel-1:
+    image: redis:7-alpine
+    container_name: business-chat-redis-sentinel-1
+    ports:
+      - "26379:26379"
+    command: >
+      sh -c "echo 'port 26379' > sentinel.conf &&
+             echo 'sentinel resolve-hostnames yes' >> sentinel.conf &&
+             echo 'sentinel announce-hostnames yes' >> sentinel.conf &&
+             echo 'sentinel monitor mymaster redis-master 6379 2' >> sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 10000' >> sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> sentinel.conf &&
+             redis-sentinel sentinel.conf"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_started
+      redis-replica-2:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+    networks:
+      - business-chat-net
+
+  redis-sentinel-2:
+    image: redis:7-alpine
+    container_name: business-chat-redis-sentinel-2
+    ports:
+      - "26380:26379"
+    command: >
+      sh -c "echo 'port 26379' > sentinel.conf &&
+             echo 'sentinel resolve-hostnames yes' >> sentinel.conf &&
+             echo 'sentinel announce-hostnames yes' >> sentinel.conf &&
+             echo 'sentinel monitor mymaster redis-master 6379 2' >> sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 10000' >> sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> sentinel.conf &&
+             redis-sentinel sentinel.conf"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_started
+      redis-replica-2:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+    networks:
+      - business-chat-net
+
+  redis-sentinel-3:
+    image: redis:7-alpine
+    container_name: business-chat-redis-sentinel-3
+    ports:
+      - "26381:26379"
+    command: >
+      sh -c "echo 'port 26379' > sentinel.conf &&
+             echo 'sentinel resolve-hostnames yes' >> sentinel.conf &&
+             echo 'sentinel announce-hostnames yes' >> sentinel.conf &&
+             echo 'sentinel monitor mymaster redis-master 6379 2' >> sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 10000' >> sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> sentinel.conf &&
+             redis-sentinel sentinel.conf"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_started
+      redis-replica-2:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+    networks:
+      - business-chat-net
+
+  # --- Go Backend App Service ---
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+    container_name: business-chat-app-dev
+    ports:
+      - "8081:8081"
+    volumes:
+      # Mount root workspace for hot reloading
+      - ..:/app
+      # Mount optimized go builds and module cache to keep builds fast
+      - gocache:/root/.cache/go-build
+      - gomodcache:/go/pkg/mod
+      # Override config.yaml inside the container with Docker specific network configs
+      - ./config.docker.yaml:/app/config.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-sentinel-1:
+        condition: service_healthy
+      redis-sentinel-2:
+        condition: service_healthy
+      redis-sentinel-3:
+        condition: service_healthy
+    restart: always
+    networks:
+      - business-chat-net
+
+  # --- Prometheus Monitoring Service ---
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: business-chat-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - promdata:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+    restart: always
+    networks:
+      - business-chat-net
+
+volumes:
+  pgdata:
+  gocache:
+  gomodcache:
+  promdata:
+
+networks:
+  business-chat-net:
+    driver: bridge

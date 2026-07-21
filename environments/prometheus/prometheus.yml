@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Uncomment this section once Alertmanager is running
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#             - alertmanager:9093
+
+# Uncomment this section once rule files are created
+# rule_files:
+#   - "rules/recording_rules.yml"
+#   - "rules/alerting_rules.yml"
+
+scrape_configs:
+  - job_name: "backend-business"
+    metrics_path: "/api/monitoring/metrics"
+    static_configs:
+      - targets: ["app:8081"]
+    scrape_interval: 5s
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
