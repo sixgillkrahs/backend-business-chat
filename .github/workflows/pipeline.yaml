@@ -1,0 +1,23 @@
+name: pipeline-cicd
+
+on: 
+  push: 
+    branches: [ main ]
+
+jobs:
+  build: 
+    runs-on: ubuntu-latest
+
+    steps: 
+      - name: checkout code
+        uses: actions/checkout@v5
+
+      - name: setup go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+      - name: install lib
+        run: go mod tidy
+
+      - name: run test
+        run: gp test -v ./...
