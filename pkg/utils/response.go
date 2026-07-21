@@ -21,6 +21,13 @@ func Success(c *gin.Context, data interface{}) {
 	})
 }
 
+func CreateSuccess(c *gin.Context, message string) {
+	c.JSON(http.StatusCreated, Response{
+		Code:    http.StatusCreated,
+		Message: message,
+	})
+}
+
 // trả về phản hồi thành công kèm thông báo tùy chỉnh
 func SuccessWithMessage(c *gin.Context, message string, data interface{}) {
 	c.JSON(http.StatusOK, Response{

@@ -38,7 +38,6 @@ func (h *AuthHandler) ListResources(c *gin.Context) {
 }
 
 func (h *AuthHandler) ListPolicies(c *gin.Context) {
-	// Parse pagination parameters with default values
 	pageStr := c.DefaultQuery("page", "1")
 	limitStr := c.DefaultQuery("limit", "10")
 
@@ -89,4 +88,8 @@ func (h *AuthHandler) ListPolicies(c *gin.Context) {
 		"page":  page,
 		"limit": limit,
 	})
+}
+
+func (h *AuthHandler) CreatePolicy(c *gin.Context) {
+	utils.CreateSuccess(c, "Tạo thành công")
 }
