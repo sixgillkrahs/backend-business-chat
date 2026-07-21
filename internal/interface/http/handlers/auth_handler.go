@@ -17,6 +17,10 @@ func NewAuthHandler(authService *application.AuthService) AuthHandler {
 	return AuthHandler{AuthService: authService}
 }
 
+func (h *AuthHandler) Login(c *gin.Context) {
+	utils.Success(c, "hello")
+}
+
 func (h *AuthHandler) ListActions(c *gin.Context) {
 	actions, err := h.AuthService.GetAllActions(c.Request.Context())
 	if err != nil {

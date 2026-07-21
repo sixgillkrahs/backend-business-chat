@@ -8,6 +8,9 @@ import (
 func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 	api := r.Group("/auth")
 	{
+		//auth
+		api.POST("/login", authHandler.Login)
+
 		api.GET("/actions", authHandler.ListActions)
 		api.GET("/resources", authHandler.ListResources)
 
