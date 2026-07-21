@@ -204,11 +204,30 @@ services:
     networks:
       - business-chat-net
 
+  # --- Grafana Visualization Service ---
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: business-chat-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafanadata:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    restart: always
+    networks:
+      - business-chat-net
+
 volumes:
   pgdata:
   gocache:
   gomodcache:
   promdata:
+  grafanadata:
 
 networks:
   business-chat-net:

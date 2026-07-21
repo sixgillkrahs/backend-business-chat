@@ -14,7 +14,7 @@ var (
 			Name: "http_requests_total",
 			Help: "Total number of HTTP requests.",
 		},
-		[]string{"method", "path", "status"},
+		[]string{"method", "route", "status"},
 	)
 
 	HttpRequestDuration = prometheus.NewHistogramVec(
@@ -23,7 +23,7 @@ var (
 			Help:    "Duration of HTTP requests in seconds.",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"method", "path"},
+		[]string{"method", "route"},
 	)
 )
 
@@ -37,9 +37,9 @@ func init() {
 func PrometheusMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		path := c.FullPath()
-		if path == "" {
-			path = "unknown"
+		route := c.FullPath()
+		if route == "" {
+			route = "unknown"
 		}
 
 		c.Next()
@@ -49,9 +49,9 @@ func PrometheusMiddleware() gin.HandlerFunc {
 		method := c.Request.Method
 
 		// Exclude Prometheus scraping endpoint itself to prevent loop noise
-		if path != "/api/monitoring/metrics" {
-			HttpRequestsTotal.WithLabelValues(method, path, status).Inc()
-			HttpRequestDuration.WithLabelValues(method, path).Observe(duration)
+		if route != "/api/monitoring/metrics" {
+			HttpRequestsTotal.WithLabelValues(method, route, status).Inc()
+			HttpRequestDuration.WithLabelValues(method, route).Observe(duration)
 		}
 	}
 }
