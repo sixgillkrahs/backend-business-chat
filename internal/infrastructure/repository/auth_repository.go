@@ -74,7 +74,7 @@ func NewPolicyRepository(db *database.PostgresDB) domain.PolicyRepository {
 	}
 }
 
-func (r *policyRepository) GetPoliciesPage(ctx context.Context, offset, limit int) ([]domain.Policy, error) {
+func (r *policyRepository) GetPoliciesPaging(ctx context.Context, offset, limit int) ([]domain.Policy, error) {
 	return r.baseRepository.GetPage(ctx, domain.Policy{}, offset, limit)
 }
 

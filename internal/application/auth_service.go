@@ -34,7 +34,7 @@ func (s *AuthService) InitDefaultResources(ctx context.Context) error {
 	return nil
 }
 
-func (s *AuthService) GetPolicies(ctx context.Context, page, limit int) ([]domain.Policy, error) {
+func (s *AuthService) GetPoliciesPaging(ctx context.Context, page, limit int) ([]domain.Policy, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -42,7 +42,7 @@ func (s *AuthService) GetPolicies(ctx context.Context, page, limit int) ([]domai
 		limit = 10
 	}
 	offset := (page - 1) * limit
-	return s.policyRepo.GetPoliciesPage(ctx, offset, limit)
+	return s.policyRepo.GetPoliciesPaging(ctx, offset, limit)
 }
 
 func (s *AuthService) CountPolicies(ctx context.Context) (int64, error) {
