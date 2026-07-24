@@ -2,22 +2,24 @@ package repository
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/sixgillkrahs/backend-business-chat/internal/domain"
 	"github.com/sixgillkrahs/backend-business-chat/internal/infrastructure/database"
 )
 
-type authRepository struct {
+type actionRepository struct {
 	baseRepository[domain.Action]
 }
 
-func NewAuthRepository(db *database.PostgresDB) domain.ActionRepository {
-	return &authRepository{
+func NewActionRepository(db *database.PostgresDB) domain.ActionRepository {
+	return &actionRepository{
 		baseRepository: newBaseRepository[domain.Action](db),
 	}
 }
 
-func (r *authRepository) GetAllActions(ctx context.Context) ([]domain.Action, error) {
+func (r *actionRepository) GetAllActions(ctx context.Context) ([]domain.Action, error) {
 	return r.baseRepository.GetAll(ctx, domain.Action{})
 }
 
@@ -80,4 +82,29 @@ func (r *policyRepository) GetPoliciesPaging(ctx context.Context, offset, limit 
 
 func (r *policyRepository) Count(ctx context.Context) (int64, error) {
 	return r.baseRepository.Count(ctx)
+}
+
+type authRepository struct {
+	baseRepository[domain.Auth]
+}
+
+func NewAuthRepository(db *database.PostgresDB) domain.AuthRepository {
+	return &authRepository{
+		baseRepository: newBaseRepository[domain.Auth](db),
+	}
+}
+
+func (r *authRepository) FindByUsername(ctx context.Context, username string) (domain.Auth, error) {
+	authPtr, err := r.baseRepository.FindOneByField(ctx, "username", username)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Auth{}, domain.ErrUserNotFound
+		}
+		return domain.Auth{}, err
+	}
+	if authPtr == nil {
+		return domain.Auth{}, domain.ErrUserNotFound
+	}
+
+	return *authPtr, nil
 }

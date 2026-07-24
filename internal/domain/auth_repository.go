@@ -15,3 +15,7 @@ type PolicyRepository interface {
 	GetPoliciesPaging(ctx context.Context, offset, limit int) ([]Policy, error)
 	Count(ctx context.Context) (int64, error)
 }
+
+type AuthRepository interface {
+	FindByUsername(ctx context.Context, username string) (Auth, error)
+}

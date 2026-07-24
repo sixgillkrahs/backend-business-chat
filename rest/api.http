@@ -8,8 +8,8 @@ POST {{baseUrl}}/v1/api/auth/login HTTP/1.1
 Content-Type: application/json
 
 {
-  "username": "",
-  "description": "Mô tả chính sách"
+  "username": "admin",
+  "password": "123456aA@"
 }
 
 

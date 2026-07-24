@@ -6,6 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sixgillkrahs/backend-business-chat/internal/application"
+	"github.com/sixgillkrahs/backend-business-chat/internal/application/dto"
+	"github.com/sixgillkrahs/backend-business-chat/internal/domain"
 	"github.com/sixgillkrahs/backend-business-chat/pkg/utils"
 )
 
@@ -18,7 +20,20 @@ func NewAuthHandler(authService *application.AuthService) AuthHandler {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	utils.Success(c, "hello")
+	var req dto.LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp, err := h.AuthService.Login(c.Request.Context(), req)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrInvalidCredentials: http.StatusUnauthorized,
+			domain.ErrUserNotFound:       http.StatusUnauthorized,
+		})
+		return
+	}
+	utils.Success(c, resp)
 }
 
 func (h *AuthHandler) ListActions(c *gin.Context) {

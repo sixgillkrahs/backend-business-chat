@@ -47,3 +47,19 @@ type Policy struct {
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
+
+type Auth struct {
+	ID           string    `json:"id" db:"id"`
+	Username     string    `json:"username" db:"username"`
+	PasswordHash string    `json:"password_hash" db:"password_hash"`
+	RoleId       int       `json:"role_id" db:"role_id"`
+	UserId       int       `json:"user_id" db:"user_id"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+	CreatedBy    string    `json:"created_by" db:"created_by"`
+	UpdatedBy    string    `json:"updated_by" db:"updated_by"`
+	DeletedBy    string    `json:"deleted_by" db:"deleted_by"`
+	DeletedAt    time.Time `json:"deleted_at" db:"deleted_at"`
+	IsActive     bool      `json:"is_active" db:"is_active"`
+	IsDeleted    bool      `json:"is_deleted" db:"is_deleted"`
+}

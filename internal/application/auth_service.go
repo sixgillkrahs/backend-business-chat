@@ -2,22 +2,31 @@ package application
 
 import (
 	"context"
+	"errors"
 
+	"github.com/sixgillkrahs/backend-business-chat/internal/application/dto"
 	"github.com/sixgillkrahs/backend-business-chat/internal/domain"
+	"github.com/sixgillkrahs/backend-business-chat/pkg/utils"
 )
 
 type AuthService struct {
-	authRepo      domain.ActionRepository
+	actionRepo    domain.ActionRepository
+	authRepo      domain.AuthRepository
 	resourcesRepo domain.ResourceRepository
 	policyRepo    domain.PolicyRepository
 }
 
-func NewAuthService(authRepo domain.ActionRepository, resourcesRepo domain.ResourceRepository, policyRepo domain.PolicyRepository) *AuthService {
-	return &AuthService{authRepo: authRepo, resourcesRepo: resourcesRepo, policyRepo: policyRepo}
+func NewAuthService(actionRepo domain.ActionRepository, authRepo domain.AuthRepository, resourcesRepo domain.ResourceRepository, policyRepo domain.PolicyRepository) *AuthService {
+	return &AuthService{
+		actionRepo:    actionRepo,
+		authRepo:      authRepo,
+		resourcesRepo: resourcesRepo,
+		policyRepo:    policyRepo,
+	}
 }
 
 func (s *AuthService) GetAllActions(ctx context.Context) ([]domain.Action, error) {
-	return s.authRepo.GetAllActions(ctx)
+	return s.actionRepo.GetAllActions(ctx)
 }
 
 func (s *AuthService) GetAllResources(ctx context.Context) ([]domain.Resource, error) {
@@ -47,4 +56,24 @@ func (s *AuthService) GetPoliciesPaging(ctx context.Context, page, limit int) ([
 
 func (s *AuthService) CountPolicies(ctx context.Context) (int64, error) {
 	return s.policyRepo.Count(ctx)
+}
+
+func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest) (string, error) {
+	auth, err := s.authRepo.FindByUsername(ctx, req.Username)
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			return "", domain.ErrInvalidCredentials
+		}
+		return "", err
+	}
+
+	if !utils.CheckPasswordHash(req.Password, auth.PasswordHash) {
+		return "", domain.ErrInvalidCredentials
+	}
+
+	if !auth.IsActive {
+		return "", domain.ErrUserLocked
+	}
+
+	return req.Username, nil
 }

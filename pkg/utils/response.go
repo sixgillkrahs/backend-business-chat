@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -58,4 +59,14 @@ func ValidationError(c *gin.Context, errors interface{}) {
 		Message: "Validation failed",
 		Errors:  errors,
 	})
+}
+
+func HandleDomainError(c *gin.Context, err error, domainErrMap map[error]int) {
+	for domainErr, statusCode := range domainErrMap {
+		if errors.Is(err, domainErr) {
+			Error(c, statusCode, err.Error())
+			return
+		}
+	}
+	Error(c, http.StatusInternalServerError, "Lỗi hệ thống nội bộ")
 }
