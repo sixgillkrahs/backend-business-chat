@@ -19,6 +19,18 @@ func NewAuthHandler(authService *application.AuthService) AuthHandler {
 	return AuthHandler{AuthService: authService}
 }
 
+// Login godoc
+// @Summary      Đăng nhập
+// @Description  Xác thực người dùng và trả về JWT token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dto.LoginRequest  true  "Thông tin đăng nhập"
+// @Success      200   {object}  map[string]string "access_token"
+// @Failure      400   {object}  map[string]string
+// @Failure      401   {object}  map[string]string
+// @Failure      403   {object}  map[string]string
+// @Router       /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	lang := utils.GetLanguageFromContext(c)
 	ip := c.ClientIP()
@@ -43,6 +55,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
+// ListActions godoc
+// @Summary      Danh sách actions
+// @Description  Lấy toàn bộ danh sách actions trong hệ thống
+// @Tags         auth
+// @Produce      json
+// @Success      200  {array}   domain.Action
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/actions [get]
 func (h *AuthHandler) ListActions(c *gin.Context) {
 	actions, err := h.AuthService.GetAllActions(c.Request.Context())
 	if err != nil {
@@ -52,6 +73,15 @@ func (h *AuthHandler) ListActions(c *gin.Context) {
 	utils.Success(c, actions)
 }
 
+// ListResources godoc
+// @Summary      Danh sách resources
+// @Description  Lấy toàn bộ danh sách resources trong hệ thống
+// @Tags         auth
+// @Produce      json
+// @Success      200  {array}   domain.Resource
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/resources [get]
 func (h *AuthHandler) ListResources(c *gin.Context) {
 	resources, err := h.AuthService.GetAllResources(c.Request.Context())
 	if err != nil {
@@ -61,6 +91,17 @@ func (h *AuthHandler) ListResources(c *gin.Context) {
 	utils.Success(c, resources)
 }
 
+// ListPolicies godoc
+// @Summary      Danh sách policies (phân trang)
+// @Description  Lấy danh sách policies với pagination
+// @Tags         auth
+// @Produce      json
+// @Param        page   query     int  false  "Trang hiện tại (default: 1)"
+// @Param        limit  query     int  false  "Số bản ghi mỗi trang (default: 10)"
+// @Success      200    {object}  map[string]interface{}
+// @Failure      500    {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/policies [get]
 func (h *AuthHandler) ListPolicies(c *gin.Context) {
 	pageStr := c.DefaultQuery("page", "1")
 	limitStr := c.DefaultQuery("limit", "10")
@@ -79,6 +120,16 @@ func (h *AuthHandler) ListPolicies(c *gin.Context) {
 	utils.Success(c, resp)
 }
 
+// CreatePolicy godoc
+// @Summary      Tạo policy mới
+// @Description  Tạo một policy phân quyền mới
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Success      201  {object}  map[string]string
+// @Failure      400  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/policies [post]
 func (h *AuthHandler) CreatePolicy(c *gin.Context) {
 	utils.CreateSuccess(c, "Tạo thành công")
 }

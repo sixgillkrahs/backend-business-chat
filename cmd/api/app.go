@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/sixgillkrahs/backend-business-chat/docs" // swagger docs
 	"github.com/sixgillkrahs/backend-business-chat/internal/application"
 	"github.com/sixgillkrahs/backend-business-chat/internal/config"
 	"github.com/sixgillkrahs/backend-business-chat/internal/infrastructure/database"
@@ -14,6 +15,8 @@ import (
 	"github.com/sixgillkrahs/backend-business-chat/internal/interface/http/middleware"
 	"github.com/sixgillkrahs/backend-business-chat/internal/interface/http/routes"
 	"github.com/sixgillkrahs/backend-business-chat/pkg/utils"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func SetupRouter(cfg *config.Config, db *database.PostgresDB) *gin.Engine {
@@ -54,5 +57,12 @@ func SetupRouter(cfg *config.Config, db *database.PostgresDB) *gin.Engine {
 		monitoringHandler := handlers.NewMonitoringHandler()
 		routes.MonitoringRouter(mr, monitoringHandler)
 	}
+
+	// Swagger UI (without production)
+	if cfg.Server.Env != "production" {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		log.Println("Swagger UI enabled at /swagger/index.html")
+	}
+
 	return r
 }
