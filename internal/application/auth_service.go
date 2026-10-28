@@ -3,21 +3,26 @@ package application
 import (
 	"context"
 	"errors"
+	"strconv"
+	"time"
 
 	"github.com/sixgillkrahs/backend-business-chat/internal/application/dto"
+	"github.com/sixgillkrahs/backend-business-chat/internal/config"
 	"github.com/sixgillkrahs/backend-business-chat/internal/domain"
 	"github.com/sixgillkrahs/backend-business-chat/pkg/utils"
 )
 
 type AuthService struct {
+	config        *config.Config
 	actionRepo    domain.ActionRepository
 	authRepo      domain.AuthRepository
 	resourcesRepo domain.ResourceRepository
 	policyRepo    domain.PolicyRepository
 }
 
-func NewAuthService(actionRepo domain.ActionRepository, authRepo domain.AuthRepository, resourcesRepo domain.ResourceRepository, policyRepo domain.PolicyRepository) *AuthService {
+func NewAuthService(cfg *config.Config, actionRepo domain.ActionRepository, authRepo domain.AuthRepository, resourcesRepo domain.ResourceRepository, policyRepo domain.PolicyRepository) *AuthService {
 	return &AuthService{
+		config:        cfg,
 		actionRepo:    actionRepo,
 		authRepo:      authRepo,
 		resourcesRepo: resourcesRepo,
@@ -58,7 +63,7 @@ func (s *AuthService) CountPolicies(ctx context.Context) (int64, error) {
 	return s.policyRepo.Count(ctx)
 }
 
-func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest) (string, error) {
+func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest, lang string, ip string) (string, error) {
 	auth, err := s.authRepo.FindByUsername(ctx, req.Username)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
@@ -74,6 +79,10 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest) (string, 
 	if !auth.IsActive {
 		return "", domain.ErrUserLocked
 	}
-
-	return req.Username, nil
+	duration := time.Duration(s.config.Server.Jwt.Duration) * time.Minute
+	accessToken, err := utils.GenerateToken(int64(auth.UserId), auth.Username, strconv.Itoa(auth.RoleId), ip, s.config.Server.Jwt.SecretKey, duration)
+	if err != nil {
+		return "", err
+	}
+	return accessToken, nil
 }

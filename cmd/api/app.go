@@ -23,7 +23,7 @@ func SetupRouter(cfg *config.Config, db *database.PostgresDB) *gin.Engine {
 		gin.SetMode(gin.DebugMode)
 	}
 	r := gin.New()
-	r.Use(utils.GinLogger(), utils.GinRecovery(), middleware.Cors(cfg), middleware.PrometheusMiddleware())
+	r.Use(utils.GinLogger(), utils.GinRecovery(), middleware.Cors(cfg), middleware.PrometheusMiddleware(), middleware.LanguageMiddleware())
 
 	apiV1 := r.Group("/v1/api")
 	{
@@ -37,7 +37,7 @@ func SetupRouter(cfg *config.Config, db *database.PostgresDB) *gin.Engine {
 		authRepo := repository.NewAuthRepository(db)
 		resourcesRepo := repository.NewResourceRepository(db)
 		policyRepo := repository.NewPolicyRepository(db)
-		authService := application.NewAuthService(actionRepo, authRepo, resourcesRepo, policyRepo)
+		authService := application.NewAuthService(cfg, actionRepo, authRepo, resourcesRepo, policyRepo)
 
 		// Auto-initialize default resources on app startup
 		if err := authService.InitDefaultResources(context.Background()); err != nil {

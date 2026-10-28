@@ -6,11 +6,17 @@ type Config struct {
 	Redis    RedisConfig    `mapstructure:"redis"`
 }
 
+type JWT struct {
+	SecretKey string `mapstructure:"secretKey"`
+	Duration  int64  `mapstructure:"duration"`
+}
+
 type ServerConfig struct {
 	Port int        `mapstructure:"port" validate:"required,min=1,max=65535"`
 	Mode string     `mapstructure:"mode" validate:"required,oneof=debug release test"`
 	Env  string     `mapstructure:"env" validate:"required,oneof=develop production test"`
 	Cors CorsConfig `mapstructure:"cors"`
+	Jwt  JWT        `mapstructure:"jwt"`
 }
 
 type CorsConfig struct {

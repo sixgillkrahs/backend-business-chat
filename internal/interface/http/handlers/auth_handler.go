@@ -20,20 +20,27 @@ func NewAuthHandler(authService *application.AuthService) AuthHandler {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	ip := c.ClientIP()
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp, err := h.AuthService.Login(c.Request.Context(), req)
+	token, err := h.AuthService.Login(c.Request.Context(), req, lang, ip)
 	if err != nil {
 		utils.HandleDomainError(c, err, map[error]int{
 			domain.ErrInvalidCredentials: http.StatusUnauthorized,
 			domain.ErrUserNotFound:       http.StatusUnauthorized,
+			domain.ErrUserLocked:         http.StatusForbidden,
 		})
 		return
 	}
-	utils.Success(c, resp)
+	c.SetCookie("access_token", token, 86400, "/", "", false, true)
+
+	utils.Success(c, gin.H{
+		"access_token": token,
+	})
 }
 
 func (h *AuthHandler) ListActions(c *gin.Context) {
