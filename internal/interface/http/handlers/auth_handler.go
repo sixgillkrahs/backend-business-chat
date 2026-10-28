@@ -104,8 +104,7 @@ func (h *AuthHandler) ListResources(c *gin.Context) {
 // @Router       /auth/policies [get]
 func (h *AuthHandler) ListPolicies(c *gin.Context) {
 	pageStr := c.DefaultQuery("page", "1")
-	limitStr := c.DefaultQuery("limit", "10")
-
+	limitStr := c.Query("limit")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
 		page = 1
@@ -126,10 +125,30 @@ func (h *AuthHandler) ListPolicies(c *gin.Context) {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
+// @Param        request      body     dto.PolicyRequest  true  "Thông tin policy"
 // @Success      201  {object}  map[string]string
 // @Failure      400  {object}  map[string]string
 // @Security     BearerAuth
 // @Router       /auth/policies [post]
 func (h *AuthHandler) CreatePolicy(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	var req dto.PolicyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	_, err := h.AuthService.CreatePolicy(c, req, lang)
+	if err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.CreateSuccess(c, "Tạo thành công")
+}
+
+func (h *AuthHandler) GetPolicyById(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	id := c.Param("id")
+
 	utils.CreateSuccess(c, "Tạo thành công")
 }

@@ -86,3 +86,30 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest, lang stri
 	}
 	return accessToken, nil
 }
+
+func (s *AuthService) CreatePolicy(ctx context.Context, req dto.PolicyRequest, lang string) (string, error) {
+	action, err := s.actionRepo.GetActionById(ctx, req.ActionId)
+	if err != nil {
+		return "", err
+	}
+
+	resource, err := s.resourcesRepo.GetResourceById(ctx, req.ResourceId)
+	if err != nil {
+		return "", err
+	}
+
+	policy := &domain.Policy{
+		Name:        req.Name,
+		Description: req.Description,
+		ActionID:    action.ID,
+		ResourceID:  resource.ID,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := s.policyRepo.Insert(ctx, policy); err != nil {
+		return "", err
+	}
+
+	return "", nil
+}

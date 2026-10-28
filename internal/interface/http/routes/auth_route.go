@@ -16,6 +16,8 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 
 		// policies
 		api.GET("/policies", authHandler.ListPolicies)
-		api.POST("policies", authHandler.CreatePolicy)
+		api.POST("/policies", authHandler.CreatePolicy)
+		api.GET("/policies/:id", authHandler.GetPolicyById)
+
 	}
 }

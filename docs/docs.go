@@ -44,7 +44,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_sixgillkrahs_backend-business-chat_internal_domain.Action"
+                                "$ref": "#/definitions/domain.Action"
                             }
                         }
                     },
@@ -80,7 +80,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_sixgillkrahs_backend-business-chat_internal_application_dto.LoginRequest"
+                            "$ref": "#/definitions/dto.LoginRequest"
                         }
                     }
                 ],
@@ -189,6 +189,17 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Tạo policy mới",
+                "parameters": [
+                    {
+                        "description": "Thông tin policy",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PolicyRequest"
+                        }
+                    }
+                ],
                 "responses": {
                     "201": {
                         "description": "Created",
@@ -232,7 +243,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_sixgillkrahs_backend-business-chat_internal_domain.Resource"
+                                "$ref": "#/definitions/domain.Resource"
                             }
                         }
                     },
@@ -250,7 +261,53 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_sixgillkrahs_backend-business-chat_internal_application_dto.LoginRequest": {
+        "domain.Action": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Resource": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.LoginRequest": {
             "type": "object",
             "required": [
                 "password",
@@ -265,49 +322,25 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_sixgillkrahs_backend-business-chat_internal_domain.Action": {
+        "dto.PolicyRequest": {
             "type": "object",
+            "required": [
+                "action_id",
+                "name",
+                "resource_id"
+            ],
             "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
+                "action_id": {
+                    "type": "integer"
                 },
                 "description": {
                     "type": "string"
                 },
-                "id": {
-                    "type": "integer"
-                },
                 "name": {
                     "type": "string"
                 },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_sixgillkrahs_backend-business-chat_internal_domain.Resource": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
+                "resource_id": {
                     "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
                 }
             }
         }

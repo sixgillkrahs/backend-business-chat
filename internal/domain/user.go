@@ -34,6 +34,7 @@ type User struct {
 var (
 	ErrUsernameTooShort = errors.New("username phải có ít nhất 3 ký tự")
 	ErrInvalidEmail     = errors.New("email không hợp lệ")
+	ErrInternal         = errors.New("Lỗi nội bộ")
 )
 
 func NewUser(username, email, passwordHash string) (*User, error) {

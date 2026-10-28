@@ -26,7 +26,7 @@ func SetupRouter(cfg *config.Config, db *database.PostgresDB) *gin.Engine {
 		gin.SetMode(gin.DebugMode)
 	}
 	r := gin.New()
-	r.Use(utils.GinLogger(), utils.GinRecovery(), middleware.Cors(cfg), middleware.PrometheusMiddleware(), middleware.LanguageMiddleware())
+	r.Use(utils.GinLogger(), utils.GinRecovery(), middleware.Cors(cfg), middleware.PrometheusMiddleware(), middleware.ValidateParams(), middleware.LanguageMiddleware())
 
 	apiV1 := r.Group("/v1/api")
 	{

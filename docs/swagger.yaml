@@ -1,6 +1,36 @@
 basePath: /v1/api
 definitions:
-  github_com_sixgillkrahs_backend-business-chat_internal_application_dto.LoginRequest:
+  domain.Action:
+    properties:
+      code:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  domain.Resource:
+    properties:
+      code:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dto.LoginRequest:
     properties:
       password:
         type: string
@@ -10,35 +40,20 @@ definitions:
     - password
     - username
     type: object
-  github_com_sixgillkrahs_backend-business-chat_internal_domain.Action:
+  dto.PolicyRequest:
     properties:
-      code:
-        type: string
-      created_at:
-        type: string
+      action_id:
+        type: integer
       description:
         type: string
-      id:
-        type: integer
       name:
         type: string
-      updated_at:
-        type: string
-    type: object
-  github_com_sixgillkrahs_backend-business-chat_internal_domain.Resource:
-    properties:
-      code:
-        type: string
-      created_at:
-        type: string
-      description:
-        type: string
-      id:
+      resource_id:
         type: integer
-      name:
-        type: string
-      updated_at:
-        type: string
+    required:
+    - action_id
+    - name
+    - resource_id
     type: object
 host: localhost:8081
 info:
@@ -63,7 +78,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_sixgillkrahs_backend-business-chat_internal_domain.Action'
+              $ref: '#/definitions/domain.Action'
             type: array
         "500":
           description: Internal Server Error
@@ -87,7 +102,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_sixgillkrahs_backend-business-chat_internal_application_dto.LoginRequest'
+          $ref: '#/definitions/dto.LoginRequest'
       produces:
       - application/json
       responses:
@@ -153,6 +168,13 @@ paths:
       consumes:
       - application/json
       description: Tạo một policy phân quyền mới
+      parameters:
+      - description: Thông tin policy
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PolicyRequest'
       produces:
       - application/json
       responses:
@@ -183,7 +205,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_sixgillkrahs_backend-business-chat_internal_domain.Resource'
+              $ref: '#/definitions/domain.Resource'
             type: array
         "500":
           description: Internal Server Error

@@ -23,6 +23,14 @@ func (r *actionRepository) GetAllActions(ctx context.Context) ([]domain.Action, 
 	return r.baseRepository.GetAll(ctx, domain.Action{})
 }
 
+func (r *actionRepository) GetActionById(ctx context.Context, id int) (domain.Action, error) {
+	action, err := r.baseRepository.FindByID(ctx, int64(id))
+	if err != nil {
+		return domain.Action{}, nil
+	}
+	return *action, nil
+}
+
 type resourceRepository struct {
 	baseRepository[domain.Resource]
 }
@@ -31,6 +39,14 @@ func NewResourceRepository(db *database.PostgresDB) domain.ResourceRepository {
 	return &resourceRepository{
 		baseRepository: newBaseRepository[domain.Resource](db),
 	}
+}
+
+func (r *resourceRepository) GetResourceById(ctx context.Context, id int) (domain.Resource, error) {
+	action, err := r.baseRepository.FindByID(ctx, int64(id))
+	if err != nil {
+		return domain.Resource{}, nil
+	}
+	return *action, nil
 }
 
 func (r *resourceRepository) GetAllResources(ctx context.Context) ([]domain.Resource, error) {
@@ -82,6 +98,25 @@ func (r *policyRepository) GetPoliciesPaging(ctx context.Context, offset, limit 
 
 func (r *policyRepository) Count(ctx context.Context) (int64, error) {
 	return r.baseRepository.Count(ctx)
+}
+
+func (r *policyRepository) Insert(ctx context.Context, policy *domain.Policy) error {
+	var err = r.baseRepository.Create(ctx, policy)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *policyRepository) GetPolicyById(ctx context.Context, id int) (domain.Policy, error) {
+	// query := `
+	// 	// SELECT p.*, r.name
+	// 	// FROM policies p
+	// 	// JOIN resources r on p.resource_id = r.id
+	// 	// JOIN actions a on p.action_id = a.id
+	// 	// WHERE p.id = {}
+	// `
+
 }
 
 type authRepository struct {
