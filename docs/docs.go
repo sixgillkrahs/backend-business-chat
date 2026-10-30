@@ -131,14 +131,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Lấy danh sách policies với pagination",
+                "description": "Lấy danh sách policies với pagination và tìm kiếm",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "auth"
                 ],
-                "summary": "Danh sách policies (phân trang)",
+                "summary": "Danh sách policies (phân trang và tìm kiếm)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -148,8 +148,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Số bản ghi mỗi trang (default: 10)",
+                        "description": "Số bản ghi mỗi trang (default: 10, max: 50)",
                         "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Từ khóa tìm kiếm (theo tên hoặc mô tả)",
+                        "name": "search",
                         "in": "query"
                     }
                 ],
@@ -157,8 +163,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/dto.PolicyPaginationResponse"
                         }
                     },
                     "500": {
@@ -284,6 +289,38 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Policy": {
+            "type": "object",
+            "properties": {
+                "action_id": {
+                    "type": "integer"
+                },
+                "action_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "resource_id": {
+                    "type": "integer"
+                },
+                "resource_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Resource": {
             "type": "object",
             "properties": {
@@ -319,6 +356,29 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.PolicyPaginationResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Policy"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
                 }
             }
         },

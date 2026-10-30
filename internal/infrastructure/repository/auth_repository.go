@@ -92,12 +92,98 @@ func NewPolicyRepository(db *database.PostgresDB) domain.PolicyRepository {
 	}
 }
 
-func (r *policyRepository) GetPoliciesPaging(ctx context.Context, offset, limit int) ([]domain.Policy, error) {
-	return r.baseRepository.GetPage(ctx, domain.Policy{}, offset, limit)
+func (r *policyRepository) GetPoliciesPaging(ctx context.Context, search string, offset, limit int) ([]domain.Policy, error) {
+	var query string
+	var args []interface{}
+
+	baseSelect := `
+		SELECT 
+			p.id, 
+			p.name, 
+			COALESCE(p.description, ''), 
+			p.action_id, 
+			p.resource_id, 
+			COALESCE(a.name, '') as action_name, 
+			COALESCE(r.name, '') as resource_name, 
+			p.created_at, 
+			p.updated_at
+		FROM policies p
+		LEFT JOIN actions a ON p.action_id = a.id
+		LEFT JOIN resources r ON p.resource_id = r.id
+	`
+
+	if search != "" {
+		query = baseSelect + `
+			WHERE p.name ILIKE $1 OR COALESCE(p.description, '') ILIKE $1 OR a.name ILIKE $1 OR r.name ILIKE $1
+			ORDER BY p.id ASC
+			LIMIT $2 OFFSET $3
+		`
+		pattern := "%" + search + "%"
+		args = []interface{}{pattern, limit, offset}
+	} else {
+		query = baseSelect + `
+			ORDER BY p.id ASC
+			LIMIT $1 OFFSET $2
+		`
+		args = []interface{}{limit, offset}
+	}
+
+	rows, err := r.db.Pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	policies := make([]domain.Policy, 0)
+	for rows.Next() {
+		var policy domain.Policy
+		err := rows.Scan(
+			&policy.ID,
+			&policy.Name,
+			&policy.Description,
+			&policy.ActionID,
+			&policy.ResourceID,
+			&policy.ActionName,
+			&policy.ResourceName,
+			&policy.CreatedAt,
+			&policy.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		policies = append(policies, policy)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return policies, nil
 }
 
-func (r *policyRepository) Count(ctx context.Context) (int64, error) {
-	return r.baseRepository.Count(ctx)
+func (r *policyRepository) Count(ctx context.Context, search string) (int64, error) {
+	var query string
+	var args []interface{}
+
+	if search != "" {
+		query = `
+			SELECT COUNT(*)
+			FROM policies p
+			LEFT JOIN actions a ON p.action_id = a.id
+			LEFT JOIN resources r ON p.resource_id = r.id
+			WHERE p.name ILIKE $1 OR COALESCE(p.description, '') ILIKE $1 OR a.name ILIKE $1 OR r.name ILIKE $1
+		`
+		args = []interface{}{"%" + search + "%"}
+	} else {
+		query = `SELECT COUNT(*) FROM policies`
+	}
+
+	var count int64
+	err := r.db.Pool.QueryRow(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *policyRepository) Insert(ctx context.Context, policy *domain.Policy) error {
@@ -109,14 +195,39 @@ func (r *policyRepository) Insert(ctx context.Context, policy *domain.Policy) er
 }
 
 func (r *policyRepository) GetPolicyById(ctx context.Context, id int) (domain.Policy, error) {
-	// query := `
-	// 	// SELECT p.*, r.name
-	// 	// FROM policies p
-	// 	// JOIN resources r on p.resource_id = r.id
-	// 	// JOIN actions a on p.action_id = a.id
-	// 	// WHERE p.id = {}
-	// `
+	query := `
+		SELECT 
+			p.id, 
+			p.name, 
+			COALESCE(p.description, ''), 
+			p.action_id, 
+			p.resource_id, 
+			COALESCE(a.name, '') as action_name, 
+			COALESCE(r.name, '') as resource_name, 
+			p.created_at, 
+			p.updated_at
+		FROM policies p
+		LEFT JOIN resources r ON p.resource_id = r.id
+		LEFT JOIN actions a ON p.action_id = a.id
+		WHERE p.id = $1
+	`
+	var policy domain.Policy
+	err := r.db.Pool.QueryRow(ctx, query, id).Scan(
+		&policy.ID,
+		&policy.Name,
+		&policy.Description,
+		&policy.ActionID,
+		&policy.ResourceID,
+		&policy.ActionName,
+		&policy.ResourceName,
+		&policy.CreatedAt,
+		&policy.UpdatedAt,
+	)
+	if err != nil {
+		return domain.Policy{}, err
+	}
 
+	return policy, nil
 }
 
 type authRepository struct {

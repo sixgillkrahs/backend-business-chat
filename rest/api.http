@@ -19,8 +19,8 @@ GET {{baseUrl}}/v1/api/auth/actions HTTP/1.1
 ### 4. Get All Resources
 GET {{baseUrl}}/v1/api/auth/resources HTTP/1.1
 
-### 5. Get All Policies
-GET {{baseUrl}}/v1/api/auth/policies HTTP/1.1
+### 5. Get Policies (Pagination & Search)
+GET {{baseUrl}}/v1/api/auth/policies?page=1&limit=10&search= HTTP/1.1
 
 ### 6. Create policy
 POST {{baseUrl}}/v1/api/auth/policies HTTP/1.1

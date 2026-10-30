@@ -39,13 +39,15 @@ var DefaultResources = []Resource{
 }
 
 type Policy struct {
-	ID          int       `json:"id" db:"id"`
-	Name        string    `json:"name" db:"name"`
-	Description string    `json:"description" db:"description"`
-	ActionID    int       `json:"action_id" db:"action_id"`
-	ResourceID  int       `json:"resource_id" db:"resource_id"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	ID           int       `json:"id" db:"id"`
+	Name         string    `json:"name" db:"name"`
+	Description  string    `json:"description" db:"description"`
+	ActionID     int       `json:"action_id" db:"action_id"`
+	ResourceID   int       `json:"resource_id" db:"resource_id"`
+	ActionName   string    `json:"action_name" db:"-"`
+	ResourceName string    `json:"resource_name" db:"-"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type Auth struct {

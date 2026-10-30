@@ -48,7 +48,7 @@ func (s *AuthService) InitDefaultResources(ctx context.Context) error {
 	return nil
 }
 
-func (s *AuthService) GetPoliciesPaging(ctx context.Context, page, limit int) ([]domain.Policy, error) {
+func (s *AuthService) GetPoliciesPaging(ctx context.Context, page, limit int, search string) (*dto.PolicyPaginationResponse, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -56,11 +56,33 @@ func (s *AuthService) GetPoliciesPaging(ctx context.Context, page, limit int) ([
 		limit = 10
 	}
 	offset := (page - 1) * limit
-	return s.policyRepo.GetPoliciesPaging(ctx, offset, limit)
+
+	policies, err := s.policyRepo.GetPoliciesPaging(ctx, search, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	total, err := s.policyRepo.Count(ctx, search)
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = int((total + int64(limit) - 1) / int64(limit))
+	}
+
+	return &dto.PolicyPaginationResponse{
+		Items:      policies,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
 }
 
-func (s *AuthService) CountPolicies(ctx context.Context) (int64, error) {
-	return s.policyRepo.Count(ctx)
+func (s *AuthService) CountPolicies(ctx context.Context, search string) (int64, error) {
+	return s.policyRepo.Count(ctx, search)
 }
 
 func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest, lang string, ip string) (string, error) {
@@ -112,4 +134,12 @@ func (s *AuthService) CreatePolicy(ctx context.Context, req dto.PolicyRequest, l
 	}
 
 	return "", nil
+}
+
+func (s *AuthService) GetPolicyById(ctx context.Context, id int, lang string) (domain.Policy, error) {
+	policy, err := s.policyRepo.GetPolicyById(ctx, id)
+	if err != nil {
+		return domain.Policy{}, err
+	}
+	return policy, nil
 }

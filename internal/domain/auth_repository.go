@@ -14,8 +14,8 @@ type ResourceRepository interface {
 }
 
 type PolicyRepository interface {
-	GetPoliciesPaging(ctx context.Context, offset, limit int) ([]Policy, error)
-	Count(ctx context.Context) (int64, error)
+	GetPoliciesPaging(ctx context.Context, search string, offset, limit int) ([]Policy, error)
+	Count(ctx context.Context, search string) (int64, error)
 	Insert(ctx context.Context, policy *Policy) error
 	GetPolicyById(ctx context.Context, id int) (Policy, error)
 }
