@@ -15,6 +15,23 @@ definitions:
       updated_at:
         type: string
     type: object
+  domain.Permission:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      policies:
+        items:
+          $ref: '#/definitions/domain.Policy'
+        type: array
+      updated_at:
+        type: string
+    type: object
   domain.Policy:
     properties:
       action_id:
@@ -66,8 +83,8 @@ definitions:
         minItems: 1
         type: array
     required:
-      - name
-      - policy_ids
+    - name
+    - policy_ids
     type: object
   dto.LoginRequest:
     properties:
@@ -76,14 +93,27 @@ definitions:
       username:
         type: string
     required:
-      - password
-      - username
+    - password
+    - username
+    type: object
+  dto.PermissionPaginationResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.Permission'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
     type: object
   dto.PolicyPaginationResponse:
     properties:
       items:
         items:
-          $ref: "#/definitions/domain.Policy"
+          $ref: '#/definitions/domain.Policy'
         type: array
       limit:
         type: integer
@@ -107,10 +137,10 @@ definitions:
       resource_id:
         type: integer
     required:
-      - action_id
-      - idempotence_key
-      - name
-      - resource_id
+    - action_id
+    - idempotence_key
+    - name
+    - resource_id
     type: object
   dto.UpdatePolicyRequest:
     properties:
@@ -140,13 +170,13 @@ paths:
     get:
       description: Lấy toàn bộ danh sách actions trong hệ thống
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
             items:
-              $ref: "#/definitions/domain.Action"
+              $ref: '#/definitions/domain.Action'
             type: array
         "500":
           description: Internal Server Error
@@ -155,24 +185,24 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Danh sách actions
       tags:
-        - auth
+      - auth
   /auth/login:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Xác thực người dùng và trả về JWT token
       parameters:
-        - description: Thông tin đăng nhập
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: "#/definitions/dto.LoginRequest"
+      - description: Thông tin đăng nhập
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: access_token
@@ -200,21 +230,61 @@ paths:
             type: object
       summary: Đăng nhập
       tags:
-        - auth
+      - auth
   /auth/permissions:
+    get:
+      description: Lấy danh sách permissions kèm danh sách các policy của mỗi permission,
+        hỗ trợ tìm kiếm và phân trang bằng limit & offset
+      parameters:
+      - description: 'Số bản ghi cần lấy (default: 10, max: 50)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Số bản ghi cần bỏ qua (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      - description: Từ khóa tìm kiếm (theo tên hoặc mô tả)
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PermissionPaginationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách permissions (phân trang limit & offset)
+      tags:
+      - auth
     post:
       consumes:
-        - application/json
+      - application/json
       description: Tạo một permission mới liên kết với nhiều policy IDs
       parameters:
-        - description: Thông tin permission và danh sách policy IDs
-          in: body
-          name: request
-          required: true
-          schema:
-            $ref: "#/definitions/dto.CreatePermissionRequest"
+      - description: Thông tin permission và danh sách policy IDs
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreatePermissionRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "201":
           description: Created
@@ -240,33 +310,33 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Tạo permission mới
       tags:
-        - auth
+      - auth
   /auth/policies:
     get:
       description: Lấy danh sách policies với pagination và tìm kiếm
       parameters:
-        - description: "Trang hiện tại (default: 1)"
-          in: query
-          name: page
-          type: integer
-        - description: "Số bản ghi mỗi trang (default: 10, max: 50)"
-          in: query
-          name: limit
-          type: integer
-        - description: Từ khóa tìm kiếm (theo tên hoặc mô tả)
-          in: query
-          name: search
-          type: string
+      - description: 'Trang hiện tại (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Số bản ghi mỗi trang (default: 10, max: 50)'
+        in: query
+        name: limit
+        type: integer
+      - description: Từ khóa tìm kiếm (theo tên hoặc mô tả)
+        in: query
+        name: search
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/dto.PolicyPaginationResponse"
+            $ref: '#/definitions/dto.PolicyPaginationResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -274,23 +344,23 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Danh sách policies (phân trang và tìm kiếm)
       tags:
-        - auth
+      - auth
     post:
       consumes:
-        - application/json
+      - application/json
       description: Tạo một policy phân quyền mới
       parameters:
-        - description: Thông tin policy
-          in: body
-          name: request
-          required: true
-          schema:
-            $ref: "#/definitions/dto.PolicyRequest"
+      - description: Thông tin policy
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PolicyRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "201":
           description: Created
@@ -305,21 +375,21 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Tạo policy mới
       tags:
-        - auth
+      - auth
   /auth/policies/{id}:
     delete:
       description: Xóa một policy khỏi hệ thống theo ID
       parameters:
-        - description: ID của policy
-          in: path
-          name: id
-          required: true
-          type: integer
+      - description: ID của policy
+        in: path
+        name: id
+        required: true
+        type: integer
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -346,25 +416,25 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Xóa policy theo ID
       tags:
-        - auth
+      - auth
     get:
       description: Lấy thông tin chi tiết của một policy theo ID
       parameters:
-        - description: ID của policy
-          in: path
-          name: id
-          required: true
-          type: integer
+      - description: ID của policy
+        in: path
+        name: id
+        required: true
+        type: integer
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/domain.Policy"
+            $ref: '#/definitions/domain.Policy'
         "400":
           description: Bad Request
           schema:
@@ -384,33 +454,33 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Chi tiết policy theo ID
       tags:
-        - auth
+      - auth
     put:
       consumes:
-        - application/json
+      - application/json
       description: Cập nhật thông tin của một policy theo ID
       parameters:
-        - description: ID của policy
-          in: path
-          name: id
-          required: true
-          type: integer
-        - description: Thông tin cập nhật policy
-          in: body
-          name: request
-          required: true
-          schema:
-            $ref: "#/definitions/dto.UpdatePolicyRequest"
+      - description: ID của policy
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Thông tin cập nhật policy
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdatePolicyRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/domain.Policy"
+            $ref: '#/definitions/domain.Policy'
         "400":
           description: Bad Request
           schema:
@@ -430,21 +500,21 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Cập nhật policy theo ID
       tags:
-        - auth
+      - auth
   /auth/resources:
     get:
       description: Lấy toàn bộ danh sách resources trong hệ thống
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
             items:
-              $ref: "#/definitions/domain.Resource"
+              $ref: '#/definitions/domain.Resource'
             type: array
         "500":
           description: Internal Server Error
@@ -453,10 +523,10 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Danh sách resources
       tags:
-        - auth
+      - auth
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

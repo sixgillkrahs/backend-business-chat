@@ -292,3 +292,47 @@ func (h *AuthHandler) CreatePermission(c *gin.Context) {
 		"message": "Tạo permission thành công",
 	})
 }
+
+
+// ListPermissions godoc
+// @Summary      Danh sách permissions (phân trang limit & offset)
+// @Description  Lấy danh sách permissions kèm danh sách các policy của mỗi permission, hỗ trợ tìm kiếm và phân trang bằng limit & offset
+// @Tags         auth
+// @Produce      json
+// @Param        limit   query     int     false  "Số bản ghi cần lấy (default: 10, max: 50)"
+// @Param        offset  query     int     false  "Số bản ghi cần bỏ qua (default: 0)"
+// @Param        search  query     string  false  "Từ khóa tìm kiếm (theo tên hoặc mô tả)"
+// @Success      200     {object}  dto.PermissionPaginationResponse
+// @Failure      400     {object}  map[string]string
+// @Failure      500     {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/permissions [get]
+func (h *AuthHandler) ListPermissions(c *gin.Context) {
+	limitStr := c.DefaultQuery("limit", "10")
+	offsetStr := c.DefaultQuery("offset", "0")
+	search := strings.TrimSpace(c.Query("search"))
+	if search == "" {
+		search = strings.TrimSpace(c.Query("q"))
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	resp, err := h.AuthService.GetPermissionsPaging(c.Request.Context(), limit, offset, search)
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.Success(c, resp)
+}

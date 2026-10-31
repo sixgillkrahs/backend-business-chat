@@ -230,3 +230,38 @@ func (s *AuthService) CreatePermission(ctx context.Context, req dto.CreatePermis
 
 	return perm.ID, nil
 }
+
+
+func (s *AuthService) GetPermissionsPaging(ctx context.Context, limit, offset int, search string) (*dto.PermissionPaginationResponse, error) {
+	// OWASP A04: Input boundary sanitization and defense in depth
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50 // Enforce max page limit to prevent memory exhaustion / DoS
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	search = strings.TrimSpace(search)
+	if len(search) > 100 {
+		search = search[:100] // Cap search string length
+	}
+
+	permissions, err := s.permissionRepo.GetPermissionsPaging(ctx, search, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	total, err := s.permissionRepo.Count(ctx, search)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.PermissionPaginationResponse{
+		Items:  permissions,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	}, nil
+}

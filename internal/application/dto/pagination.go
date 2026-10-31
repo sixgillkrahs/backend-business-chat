@@ -17,3 +17,10 @@ type PolicyPaginationResponse struct {
 	Limit      int             `json:"limit"`
 	TotalPages int             `json:"total_pages"`
 }
+
+type PermissionPaginationResponse struct {
+	Items  []domain.Permission `json:"items"`
+	Total  int64               `json:"total"`
+	Limit  int                 `json:"limit"`
+	Offset int                 `json:"offset"`
+}

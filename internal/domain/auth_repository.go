@@ -27,6 +27,8 @@ type AuthRepository interface {
 }
 
 type PermissionRepository interface {
+	GetPermissionsPaging(ctx context.Context, search string, offset, limit int) ([]Permission, error)
+	Count(ctx context.Context, search string) (int64, error)
 	CreateWithPolicies(ctx context.Context, permission *Permission, policyIDs []int) error
 	GetPermissionByName(ctx context.Context, name string) (*Permission, error)
 	GetPermissionById(ctx context.Context, id int) (*Permission, error)
