@@ -161,6 +161,18 @@ func (h *AuthHandler) CreatePolicy(c *gin.Context) {
 	utils.CreateSuccess(c, "Tạo thành công")
 }
 
+// GetPolicyById godoc
+// @Summary      Chi tiết policy theo ID
+// @Description  Lấy thông tin chi tiết của một policy theo ID
+// @Tags         auth
+// @Produce      json
+// @Param        id   path      int  true  "ID của policy"
+// @Success      200  {object}  domain.Policy
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/policies/{id} [get]
 func (h *AuthHandler) GetPolicyById(c *gin.Context) {
 	lang := utils.GetLanguageFromContext(c)
 	id := c.Param("id")
@@ -176,4 +188,107 @@ func (h *AuthHandler) GetPolicyById(c *gin.Context) {
 	}
 
 	utils.Success(c, policy)
+}
+
+// UpdatePolicyById godoc
+// @Summary      Cập nhật policy theo ID
+// @Description  Cập nhật thông tin của một policy theo ID
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int                      true  "ID của policy"
+// @Param        request  body      dto.UpdatePolicyRequest  true  "Thông tin cập nhật policy"
+// @Success      200      {object}  domain.Policy
+// @Failure      400      {object}  map[string]string
+// @Failure      404      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/policies/{id} [put]
+func (h *AuthHandler) UpdatePolicyById(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	id := c.Param("id")
+	idNum, err := strconv.Atoi(id)
+	if err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	var req dto.UpdatePolicyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	policy, err := h.AuthService.UpdatePolicyById(c.Request.Context(), idNum, req, lang)
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.Success(c, policy)
+}
+
+
+// DeletePolicyById godoc
+// @Summary      Xóa policy theo ID
+// @Description  Xóa một policy khỏi hệ thống theo ID
+// @Tags         auth
+// @Produce      json
+// @Param        id   path      int  true  "ID của policy"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/policies/{id} [delete]
+func (h *AuthHandler) DeletePolicyById(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	id := c.Param("id")
+	idNum, err := strconv.Atoi(id)
+	if err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.AuthService.DeletePolicyById(c.Request.Context(), idNum, lang); err != nil {
+		utils.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.Success(c, gin.H{"message": "Xóa thành công"})
+}
+
+
+// CreatePermission godoc
+// @Summary      Tạo permission mới
+// @Description  Tạo một permission mới liên kết với nhiều policy IDs
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.CreatePermissionRequest  true  "Thông tin permission và danh sách policy IDs"
+// @Success      201      {object}  map[string]interface{}
+// @Failure      400      {object}  map[string]string
+// @Failure      409      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/permissions [post]
+func (h *AuthHandler) CreatePermission(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	var req dto.CreatePermissionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	id, err := h.AuthService.CreatePermission(c.Request.Context(), req, lang)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrPolicyNotFound:          http.StatusBadRequest,
+			domain.ErrEmptyPolicies:           http.StatusBadRequest,
+			domain.ErrPermissionNameDuplicate: http.StatusConflict,
+		})
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"id":      id,
+		"message": "Tạo permission thành công",
+	})
 }

@@ -18,8 +18,17 @@ type PolicyRepository interface {
 	Count(ctx context.Context, search string) (int64, error)
 	Insert(ctx context.Context, policy *Policy) error
 	GetPolicyById(ctx context.Context, id int) (Policy, error)
+	Update(ctx context.Context, policy *Policy) error
+	Delete(ctx context.Context, id int) error
 }
 
 type AuthRepository interface {
 	FindByUsername(ctx context.Context, username string) (Auth, error)
+}
+
+type PermissionRepository interface {
+	CreateWithPolicies(ctx context.Context, permission *Permission, policyIDs []int) error
+	GetPermissionByName(ctx context.Context, name string) (*Permission, error)
+	GetPermissionById(ctx context.Context, id int) (*Permission, error)
+	ValidatePolicyIDs(ctx context.Context, policyIDs []int) (bool, error)
 }

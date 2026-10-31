@@ -65,3 +65,16 @@ type Auth struct {
 	IsActive     bool      `json:"is_active" db:"is_active"`
 	IsDeleted    bool      `json:"is_deleted" db:"is_deleted"`
 }
+
+type Permission struct {
+	ID          int       `json:"id" db:"id"`
+	Name        string    `json:"name" db:"name"`
+	Description string    `json:"description" db:"description"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	Policies    []Policy  `json:"policies,omitempty" db:"-"`
+}
+
+func (Permission) TableName() string {
+	return "permission"
+}

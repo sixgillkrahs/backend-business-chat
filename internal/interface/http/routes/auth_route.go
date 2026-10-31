@@ -18,6 +18,11 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 		api.GET("/policies", authHandler.ListPolicies)
 		api.POST("/policies", authHandler.CreatePolicy)
 		api.GET("/policies/:id", authHandler.GetPolicyById)
+		api.PUT("/policies/:id", authHandler.UpdatePolicyById)
+		api.DELETE("/policies/:id", authHandler.DeletePolicyById)
+
+		// permissions
+		api.POST("/permissions", authHandler.CreatePermission)
 
 	}
 }

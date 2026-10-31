@@ -230,6 +230,10 @@ func (r *policyRepository) GetPolicyById(ctx context.Context, id int) (domain.Po
 	return policy, nil
 }
 
+func (r *policyRepository) Delete(ctx context.Context, id int) error {
+	return r.baseRepository.Delete(ctx, int64(id))
+}
+
 type authRepository struct {
 	baseRepository[domain.Auth]
 }

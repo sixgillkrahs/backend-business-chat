@@ -40,7 +40,8 @@ func SetupRouter(cfg *config.Config, db *database.PostgresDB) *gin.Engine {
 		authRepo := repository.NewAuthRepository(db)
 		resourcesRepo := repository.NewResourceRepository(db)
 		policyRepo := repository.NewPolicyRepository(db)
-		authService := application.NewAuthService(cfg, actionRepo, authRepo, resourcesRepo, policyRepo)
+		permissionRepo := repository.NewPermissionRepository(db)
+		authService := application.NewAuthService(cfg, actionRepo, authRepo, resourcesRepo, policyRepo, permissionRepo)
 
 		// Auto-initialize default resources on app startup
 		if err := authService.InitDefaultResources(context.Background()); err != nil {

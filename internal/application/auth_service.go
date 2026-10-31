@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sixgillkrahs/backend-business-chat/internal/application/dto"
 	"github.com/sixgillkrahs/backend-business-chat/internal/config"
 	"github.com/sixgillkrahs/backend-business-chat/internal/domain"
@@ -13,20 +15,22 @@ import (
 )
 
 type AuthService struct {
-	config        *config.Config
-	actionRepo    domain.ActionRepository
-	authRepo      domain.AuthRepository
-	resourcesRepo domain.ResourceRepository
-	policyRepo    domain.PolicyRepository
+	config         *config.Config
+	actionRepo     domain.ActionRepository
+	authRepo       domain.AuthRepository
+	resourcesRepo  domain.ResourceRepository
+	policyRepo     domain.PolicyRepository
+	permissionRepo domain.PermissionRepository
 }
 
-func NewAuthService(cfg *config.Config, actionRepo domain.ActionRepository, authRepo domain.AuthRepository, resourcesRepo domain.ResourceRepository, policyRepo domain.PolicyRepository) *AuthService {
+func NewAuthService(cfg *config.Config, actionRepo domain.ActionRepository, authRepo domain.AuthRepository, resourcesRepo domain.ResourceRepository, policyRepo domain.PolicyRepository, permissionRepo domain.PermissionRepository) *AuthService {
 	return &AuthService{
-		config:        cfg,
-		actionRepo:    actionRepo,
-		authRepo:      authRepo,
-		resourcesRepo: resourcesRepo,
-		policyRepo:    policyRepo,
+		config:         cfg,
+		actionRepo:     actionRepo,
+		authRepo:       authRepo,
+		resourcesRepo:  resourcesRepo,
+		policyRepo:     policyRepo,
+		permissionRepo: permissionRepo,
 	}
 }
 
@@ -114,7 +118,6 @@ func (s *AuthService) CreatePolicy(ctx context.Context, req dto.PolicyRequest, l
 	if err != nil {
 		return "", err
 	}
-
 	resource, err := s.resourcesRepo.GetResourceById(ctx, req.ResourceId)
 	if err != nil {
 		return "", err
@@ -142,4 +145,88 @@ func (s *AuthService) GetPolicyById(ctx context.Context, id int, lang string) (d
 		return domain.Policy{}, err
 	}
 	return policy, nil
+}
+
+func (s *AuthService) UpdatePolicyById(ctx context.Context, id int, req dto.UpdatePolicyRequest, lang string) (domain.Policy, error) {
+	policy, err := s.policyRepo.GetPolicyById(ctx, id)
+	if err != nil {
+		return domain.Policy{}, err
+	}
+	if req.Name != nil {
+		policy.Name = *req.Name
+	}
+	if req.Description != nil {
+		policy.Description = *req.Description
+	}
+	if req.ResourceId != nil {
+		policy.ResourceID = *req.ResourceId
+	}
+	if req.ActionId != nil {
+		policy.ActionID = *req.ActionId
+	}
+	policy.UpdatedAt = time.Now()
+	if err := s.policyRepo.Update(ctx, &policy); err != nil {
+		return domain.Policy{}, err
+	}
+	return policy, nil
+}
+
+func (s *AuthService) DeletePolicyById(ctx context.Context, id int, lang string) error {
+	_, err := s.policyRepo.GetPolicyById(ctx, id)
+	if err != nil {
+		return err
+	}
+	return s.policyRepo.Delete(ctx, id)
+}
+
+func (s *AuthService) CreatePermission(ctx context.Context, req dto.CreatePermissionRequest, lang string) (int, error) {
+	name := strings.TrimSpace(req.Name)
+	desc := strings.TrimSpace(req.Description)
+
+	policyMap := make(map[int]struct{})
+	var uniquePolicyIDs []int
+	for _, id := range req.PolicyIDs {
+		if _, exists := policyMap[id]; !exists {
+			policyMap[id] = struct{}{}
+			uniquePolicyIDs = append(uniquePolicyIDs, id)
+		}
+	}
+
+	if len(uniquePolicyIDs) == 0 {
+		return 0, domain.ErrEmptyPolicies
+	}
+
+	existing, err := s.permissionRepo.GetPermissionByName(ctx, name)
+	if err != nil {
+		return 0, err
+	}
+	if existing != nil {
+		return existing.ID, domain.ErrPermissionNameDuplicate
+	}
+
+	valid, err := s.permissionRepo.ValidatePolicyIDs(ctx, uniquePolicyIDs)
+	if err != nil {
+		return 0, err
+	}
+	if !valid {
+		return 0, domain.ErrPolicyNotFound
+	}
+
+	now := time.Now()
+	perm := &domain.Permission{
+		Name:        name,
+		Description: desc,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := s.permissionRepo.CreateWithPolicies(ctx, perm, uniquePolicyIDs); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return 0, domain.ErrPermissionNameDuplicate
+		}
+		return 0, err
+	}
+
+	return perm.ID, nil
 }
