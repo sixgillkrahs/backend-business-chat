@@ -14,6 +14,8 @@ const (
 	KeyErrUserLocked         = "err.user_locked"
 	KeyErrUsernameTooShort   = "err.username_too_short"
 	KeyErrInvalidEmail       = "err.invalid_email"
+	KeyErrPermissionNotFound = "err.permission_not_found"
+	KeyErrInvalidID          = "err.invalid_id"
 )
 
 var (
@@ -30,6 +32,8 @@ var (
 			KeyErrUserLocked:         "Người dùng đã bị khóa",
 			KeyErrUsernameTooShort:   "Username phải có ít nhất 3 ký tự",
 			KeyErrInvalidEmail:       "Email không hợp lệ",
+			KeyErrPermissionNotFound: "Permission không tồn tại trong hệ thống",
+			KeyErrInvalidID:          "ID không hợp lệ",
 
 			"Success":               "Thành công",
 			"Created successfully":  "Tạo thành công",
@@ -42,6 +46,8 @@ var (
 			"Người dùng đã bị khóa":                   "Người dùng đã bị khóa",
 			"username phải có ít nhất 3 ký tự":        "Username phải có ít nhất 3 ký tự",
 			"email không hợp lệ":                      "Email không hợp lệ",
+			"permission không tồn tại trong hệ thống": "Permission không tồn tại trong hệ thống",
+			"ID không hợp lệ":                         "ID không hợp lệ",
 		},
 		"en": {
 			KeySuccess:             "Success",
@@ -54,6 +60,8 @@ var (
 			KeyErrUserLocked:         "User account is locked",
 			KeyErrUsernameTooShort:   "Username must be at least 3 characters",
 			KeyErrInvalidEmail:       "Invalid email address",
+			KeyErrPermissionNotFound: "Permission not found",
+			KeyErrInvalidID:          "Invalid ID",
 
 			"Success":               "Success",
 			"Created successfully":  "Created successfully",
@@ -66,6 +74,8 @@ var (
 			"Người dùng đã bị khóa":                   "User account is locked",
 			"username phải có ít nhất 3 ký tự":        "Username must be at least 3 characters",
 			"email không hợp lệ":                      "Invalid email address",
+			"permission không tồn tại trong hệ thống": "Permission not found",
+			"ID không hợp lệ":                         "Invalid ID",
 		},
 	}
 )

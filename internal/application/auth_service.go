@@ -265,3 +265,21 @@ func (s *AuthService) GetPermissionsPaging(ctx context.Context, limit, offset in
 		Offset: offset,
 	}, nil
 }
+
+// GetPermissionById retrieves a single permission by its ID along with its policies.
+// Implements OWASP A04 (Insecure Design) defense with input validation and A01 (Broken Access Control).
+func (s *AuthService) GetPermissionById(ctx context.Context, id int) (*domain.Permission, error) {
+	if id <= 0 {
+		return nil, domain.ErrPermissionNotFound
+	}
+
+	perm, err := s.permissionRepo.GetPermissionById(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if perm == nil {
+		return nil, domain.ErrPermissionNotFound
+	}
+
+	return perm, nil
+}

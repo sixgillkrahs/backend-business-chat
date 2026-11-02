@@ -9,4 +9,5 @@ var (
 	ErrPermissionNameDuplicate = errors.New("tên permission đã tồn tại trong hệ thống")
 	ErrPolicyNotFound          = errors.New("một hoặc nhiều policy không tồn tại trong hệ thống")
 	ErrEmptyPolicies           = errors.New("permission phải chứa ít nhất một policy")
+	ErrPermissionNotFound      = errors.New("permission không tồn tại trong hệ thống")
 )

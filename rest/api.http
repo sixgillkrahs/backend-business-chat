@@ -32,3 +32,9 @@ Content-Type: application/json
   "action_id": 1,
   "resource_id": 1
 }
+
+### 7. Get Permissions (Pagination & Search)
+GET {{baseUrl}}/v1/api/auth/permissions?limit=10&offset=0&search= HTTP/1.1
+
+### 8. Get Permission by ID
+GET {{baseUrl}}/v1/api/auth/permissions/1 HTTP/1.1

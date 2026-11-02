@@ -336,3 +336,34 @@ func (h *AuthHandler) ListPermissions(c *gin.Context) {
 
 	utils.Success(c, resp)
 }
+
+// GetPermissionById godoc
+// @Summary      Chi tiết permission theo ID
+// @Description  Lấy thông tin chi tiết của một permission kèm danh sách policies theo ID
+// @Tags         auth
+// @Produce      json
+// @Param        id   path      int  true  "ID của permission"
+// @Success      200  {object}  domain.Permission
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/permissions/{id} [get]
+func (h *AuthHandler) GetPermissionById(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		utils.Error(c, http.StatusBadRequest, "ID không hợp lệ")
+		return
+	}
+
+	perm, err := h.AuthService.GetPermissionById(c.Request.Context(), id)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrPermissionNotFound: http.StatusNotFound,
+		})
+		return
+	}
+
+	utils.Success(c, perm)
+}

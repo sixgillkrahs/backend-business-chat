@@ -314,6 +314,46 @@ paths:
       summary: Tạo permission mới
       tags:
       - auth
+  /auth/permissions/{id}:
+    get:
+      description: Lấy thông tin chi tiết của một permission kèm danh sách policies
+        theo ID
+      parameters:
+      - description: ID của permission
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Permission'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Chi tiết permission theo ID
+      tags:
+      - auth
   /auth/policies:
     get:
       description: Lấy danh sách policies với pagination và tìm kiếm

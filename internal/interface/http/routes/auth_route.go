@@ -24,6 +24,7 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 		// permissions
 		api.GET("/permissions", authHandler.ListPermissions)
 		api.POST("/permissions", authHandler.CreatePermission)
+		api.GET("/permissions/:id", authHandler.GetPermissionById)
 
 	}
 }
