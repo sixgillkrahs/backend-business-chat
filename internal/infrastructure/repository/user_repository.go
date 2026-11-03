@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -238,22 +239,25 @@ func (r *userRepository) GetUsersPaging(ctx context.Context, search string, offs
 	var args []interface{}
 
 	baseSelect := `
-		SELECT id, username, email, full_name, COALESCE(avatar_url, ''), COALESCE(phone_number, ''),
-		       COALESCE(address, ''), role_id, is_active, is_deleted, created_by, updated_by,
-		       deleted_by, created_at, updated_at, deleted_at
-		FROM users
-		WHERE is_deleted = false
+		SELECT u.id, u.username, u.email, u.full_name, COALESCE(u.avatar_url, ''), COALESCE(u.phone_number, ''),
+		       COALESCE(u.address, ''), u.role_id, u.is_active, u.is_deleted, u.created_by, u.updated_by,
+		       u.deleted_by, u.created_at, u.updated_at, u.deleted_at,
+		       r.id, COALESCE(r.name, ''), COALESCE(r.description, ''), COALESCE(r.isactive, false), COALESCE(r.issystem, false),
+		       r.created_at, r.updated_at
+		FROM users u
+		LEFT JOIN roles r ON u.role_id = r.id
+		WHERE u.is_deleted = false
 	`
 	if search != "" {
 		query = baseSelect + `
-			AND (username ILIKE $1 OR email ILIKE $1 OR full_name ILIKE $1)
-			ORDER BY id ASC
+			AND (u.username ILIKE $1 OR u.email ILIKE $1 OR u.full_name ILIKE $1)
+			ORDER BY u.id ASC
 			LIMIT $2 OFFSET $3
 		`
 		args = []interface{}{"%" + search + "%", limit, offset}
 	} else {
 		query = baseSelect + `
-			ORDER BY id ASC
+			ORDER BY u.id ASC
 			LIMIT $1 OFFSET $2
 		`
 		args = []interface{}{limit, offset}
@@ -268,13 +272,39 @@ func (r *userRepository) GetUsersPaging(ctx context.Context, search string, offs
 	users := make([]domain.User, 0)
 	for rows.Next() {
 		var u domain.User
+		var rID *int
+		var rName, rDesc string
+		var rActive, rSystem bool
+		var rCreatedAt, rUpdatedAt *time.Time
+
 		if err := rows.Scan(
 			&u.ID, &u.Username, &u.Email, &u.FullName, &u.AvatarURL, &u.PhoneNumber,
 			&u.Address, &u.RoleID, &u.IsActive, &u.IsDeleted, &u.CreatedBy, &u.UpdatedBy,
 			&u.DeletedBy, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt,
+			&rID, &rName, &rDesc, &rActive, &rSystem, &rCreatedAt, &rUpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
+
+		if rID != nil {
+			var roleCreatedAt, roleUpdatedAt time.Time
+			if rCreatedAt != nil {
+				roleCreatedAt = *rCreatedAt
+			}
+			if rUpdatedAt != nil {
+				roleUpdatedAt = *rUpdatedAt
+			}
+			u.Role = &domain.Role{
+				ID:          *rID,
+				Name:        rName,
+				Description: rDesc,
+				IsActive:    rActive,
+				IsSystem:    rSystem,
+				CreatedAt:   roleCreatedAt,
+				UpdatedAt:   roleUpdatedAt,
+			}
+		}
+
 		users = append(users, u)
 	}
 	return users, rows.Err()

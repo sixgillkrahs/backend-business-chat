@@ -608,6 +608,49 @@ func (h *AuthHandler) DeleteRoleById(c *gin.Context) {
 	})
 }
 
+// ListUsers godoc
+// @Summary      Danh sách users (phân trang limit & offset)
+// @Description  Lấy danh sách người dùng kèm vai trò (role), hỗ trợ tìm kiếm và phân trang bằng limit & offset
+// @Tags         auth
+// @Produce      json
+// @Param        limit   query     int     false  "Số bản ghi cần lấy (default: 10, max: 50)"
+// @Param        offset  query     int     false  "Số bản ghi cần bỏ qua (default: 0)"
+// @Param        search  query     string  false  "Từ khóa tìm kiếm (theo username, email hoặc họ và tên)"
+// @Success      200     {object}  dto.UserPaginationResponse
+// @Failure      400     {object}  map[string]string
+// @Failure      500     {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/users [get]
+func (h *AuthHandler) ListUsers(c *gin.Context) {
+	limitStr := c.DefaultQuery("limit", "10")
+	offsetStr := c.DefaultQuery("offset", "0")
+	search := strings.TrimSpace(c.Query("search"))
+	if search == "" {
+		search = strings.TrimSpace(c.Query("q"))
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	resp, err := h.AuthService.GetUsersPaging(c.Request.Context(), limit, offset, search)
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.Success(c, resp)
+}
+
 // CreateUser godoc
 // @Summary      Tạo người dùng mới
 // @Description  Tạo tài khoản người dùng mới cùng với thông tin đăng nhập và lưu lịch sử mật khẩu theo chuẩn OWASP

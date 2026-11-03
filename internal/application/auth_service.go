@@ -686,3 +686,36 @@ func (s *AuthService) CreateUser(ctx context.Context, req dto.CreateUserRequest,
 	user.Role = role
 	return user, nil
 }
+
+func (s *AuthService) GetUsersPaging(ctx context.Context, limit, offset int, search string) (*dto.UserPaginationResponse, error) {
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	search = strings.TrimSpace(search)
+	if len(search) > 100 {
+		search = search[:100]
+	}
+
+	users, err := s.userRepo.GetUsersPaging(ctx, search, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	total, err := s.userRepo.Count(ctx, search)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.UserPaginationResponse{
+		Items:  users,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	}, nil
+}

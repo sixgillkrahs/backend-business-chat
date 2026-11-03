@@ -2,6 +2,8 @@ package application_test
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/sixgillkrahs/backend-business-chat/internal/application"
@@ -45,10 +47,14 @@ func (m *mockRoleRepo) CountUsersByRoleId(ctx context.Context, roleId int) (int6
 
 // Mock User Repository
 type mockUserRepo struct {
+	users           []domain.User
 	usersByUsername map[string]*domain.User
 	usersByEmail    map[string]*domain.User
 	createdUser     *domain.User
 	createdHash     string
+	lastLimit       int
+	lastOffset      int
+	lastSearch      string
 }
 
 func (m *mockUserRepo) Create(ctx context.Context, user *domain.User) error { return nil }
@@ -74,9 +80,35 @@ func (m *mockUserRepo) FindByUsername(ctx context.Context, username string) (*do
 func (m *mockUserRepo) Update(ctx context.Context, user *domain.User) error { return nil }
 func (m *mockUserRepo) Delete(ctx context.Context, id int) error            { return nil }
 func (m *mockUserRepo) GetUsersPaging(ctx context.Context, search string, offset, limit int) ([]domain.User, error) {
-	return nil, nil
+	m.lastLimit = limit
+	m.lastOffset = offset
+	m.lastSearch = search
+
+	var filtered []domain.User
+	for _, u := range m.users {
+		if search == "" || strings.Contains(strings.ToLower(u.Username), strings.ToLower(search)) || strings.Contains(strings.ToLower(u.Email), strings.ToLower(search)) {
+			filtered = append(filtered, u)
+		}
+	}
+	if offset >= len(filtered) {
+		return []domain.User{}, nil
+	}
+	end := offset + limit
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+	return filtered[offset:end], nil
 }
-func (m *mockUserRepo) Count(ctx context.Context, search string) (int64, error) { return 0, nil }
+
+func (m *mockUserRepo) Count(ctx context.Context, search string) (int64, error) {
+	var count int64
+	for _, u := range m.users {
+		if search == "" || strings.Contains(strings.ToLower(u.Username), strings.ToLower(search)) || strings.Contains(strings.ToLower(u.Email), strings.ToLower(search)) {
+			count++
+		}
+	}
+	return count, nil
+}
 
 func setupService(roleRepo domain.RoleRepository, userRepo domain.UserRepository) *application.AuthService {
 	cfg := &config.Config{}
@@ -217,5 +249,112 @@ func TestCreateUser_PasswordTooShort(t *testing.T) {
 	_, err := service.CreateUser(context.Background(), req, "vi", "admin")
 	if err != domain.ErrPasswordTooShort {
 		t.Fatalf("expected ErrPasswordTooShort, got: %v", err)
+	}
+}
+
+func TestGetUsersPaging_DefaultPagination(t *testing.T) {
+	users := make([]domain.User, 25)
+	for i := 0; i < 25; i++ {
+		users[i] = domain.User{
+			ID:       i + 1,
+			Username: fmt.Sprintf("user_%d", i+1),
+			Email:    fmt.Sprintf("user_%d@example.com", i+1),
+			FullName: fmt.Sprintf("User %d", i+1),
+		}
+	}
+	userRepo := &mockUserRepo{users: users}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	// Call with 0 limit and 0 offset -> should default to limit 10, offset 0
+	resp, err := service.GetUsersPaging(context.Background(), 0, 0, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.Total != 25 {
+		t.Errorf("expected total 25, got: %d", resp.Total)
+	}
+	if resp.Limit != 10 {
+		t.Errorf("expected limit 10, got: %d", resp.Limit)
+	}
+	if resp.Offset != 0 {
+		t.Errorf("expected offset 0, got: %d", resp.Offset)
+	}
+	if len(resp.Items) != 10 {
+		t.Errorf("expected 10 items, got: %d", len(resp.Items))
+	}
+}
+
+func TestGetUsersPaging_CustomLimitAndOffset(t *testing.T) {
+	users := make([]domain.User, 25)
+	for i := 0; i < 25; i++ {
+		users[i] = domain.User{
+			ID:       i + 1,
+			Username: fmt.Sprintf("user_%d", i+1),
+			Email:    fmt.Sprintf("user_%d@example.com", i+1),
+		}
+	}
+	userRepo := &mockUserRepo{users: users}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	resp, err := service.GetUsersPaging(context.Background(), 5, 10, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.Limit != 5 {
+		t.Errorf("expected limit 5, got: %d", resp.Limit)
+	}
+	if resp.Offset != 10 {
+		t.Errorf("expected offset 10, got: %d", resp.Offset)
+	}
+	if len(resp.Items) != 5 {
+		t.Errorf("expected 5 items, got: %d", len(resp.Items))
+	}
+	if resp.Items[0].ID != 11 {
+		t.Errorf("expected first item ID 11, got: %d", resp.Items[0].ID)
+	}
+}
+
+func TestGetUsersPaging_BoundsValidation(t *testing.T) {
+	userRepo := &mockUserRepo{users: []domain.User{}}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	// 1. Limit > 50 clamped to 50
+	resp, err := service.GetUsersPaging(context.Background(), 100, -5, strings.Repeat("a", 150))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.Limit != 50 {
+		t.Errorf("expected limit clamped to 50, got: %d", resp.Limit)
+	}
+	if resp.Offset != 0 {
+		t.Errorf("expected negative offset clamped to 0, got: %d", resp.Offset)
+	}
+	if len(userRepo.lastSearch) != 100 {
+		t.Errorf("expected search truncated to 100 chars, got length: %d", len(userRepo.lastSearch))
+	}
+}
+
+func TestGetUsersPaging_Search(t *testing.T) {
+	users := []domain.User{
+		{ID: 1, Username: "alice", Email: "alice@company.com"},
+		{ID: 2, Username: "bob", Email: "bob@company.com"},
+		{ID: 3, Username: "charlie", Email: "charlie@other.com"},
+	}
+	userRepo := &mockUserRepo{users: users}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	resp, err := service.GetUsersPaging(context.Background(), 10, 0, "company")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.Total != 2 {
+		t.Errorf("expected total 2, got: %d", resp.Total)
+	}
+	if len(resp.Items) != 2 {
+		t.Errorf("expected 2 items, got: %d", len(resp.Items))
 	}
 }

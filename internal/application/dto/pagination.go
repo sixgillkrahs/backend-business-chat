@@ -25,6 +25,13 @@ type PermissionPaginationResponse struct {
 	Offset int                 `json:"offset"`
 }
 
+type UserPaginationResponse struct {
+	Items  []domain.User `json:"items"`
+	Total  int64         `json:"total"`
+	Limit  int           `json:"limit"`
+	Offset int           `json:"offset"`
+}
+
 type RolePaginationResponse struct {
 	Items      []domain.Role `json:"items"`
 	Total      int64         `json:"total"`

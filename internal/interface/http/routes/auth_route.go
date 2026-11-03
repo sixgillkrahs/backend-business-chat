@@ -35,6 +35,7 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 		api.DELETE("/roles/:id", authHandler.DeleteRoleById)
 
 		// users
+		api.GET("/users", authHandler.ListUsers)
 		api.POST("/users", authHandler.CreateUser)
 	}
 }

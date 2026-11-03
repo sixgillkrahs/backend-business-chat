@@ -343,6 +343,19 @@ definitions:
           type: integer
         type: array
     type: object
+  dto.UserPaginationResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.User'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
   utils.Response:
     properties:
       code:
@@ -1047,6 +1060,46 @@ paths:
       tags:
       - auth
   /auth/users:
+    get:
+      description: Lấy danh sách người dùng kèm vai trò (role), hỗ trợ tìm kiếm và
+        phân trang bằng limit & offset
+      parameters:
+      - description: 'Số bản ghi cần lấy (default: 10, max: 50)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Số bản ghi cần bỏ qua (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      - description: Từ khóa tìm kiếm (theo username, email hoặc họ và tên)
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserPaginationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách users (phân trang limit & offset)
+      tags:
+      - auth
     post:
       consumes:
       - application/json
