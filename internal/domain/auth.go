@@ -78,3 +78,18 @@ type Permission struct {
 func (Permission) TableName() string {
 	return "permission"
 }
+
+type Role struct {
+	ID          int          `json:"id" db:"id"`
+	Name        string       `json:"name" db:"name"`
+	Description string       `json:"description" db:"description"`
+	IsActive    bool         `json:"is_active" db:"isactive"`
+	IsSystem    bool         `json:"is_system" db:"issystem"`
+	CreatedAt   time.Time    `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at" db:"updated_at"`
+	Permissions []Permission `json:"permissions,omitempty" db:"-"`
+}
+
+func (Role) TableName() string {
+	return "roles"
+}

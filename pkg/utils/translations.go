@@ -56,6 +56,11 @@ var (
 			"permission phải chứa ít nhất một policy": "Permission phải chứa ít nhất một policy",
 			"tên permission phải từ 3 đến 50 ký tự":   "Tên permission phải từ 3 đến 50 ký tự",
 			"mô tả không được vượt quá 255 ký tự":     "Mô tả không được vượt quá 255 ký tự",
+			"Tạo role thành công":                     "Tạo role thành công",
+			"tên vai trò đã tồn tại trong hệ thống":   "Tên vai trò đã tồn tại trong hệ thống",
+			"vai trò không tồn tại trong hệ thống":    "Vai trò không tồn tại trong hệ thống",
+			"vai trò phải chứa ít nhất một permission": "Vai trò phải chứa ít nhất một permission",
+			"tên vai trò phải từ 3 đến 50 ký tự":     "Tên vai trò phải từ 3 đến 50 ký tự",
 		},
 		"en": {
 			KeySuccess:             "Success",
@@ -91,6 +96,11 @@ var (
 			"permission phải chứa ít nhất một policy": "Permission must contain at least one policy",
 			"tên permission phải từ 3 đến 50 ký tự":   "Permission name must be between 3 and 50 characters",
 			"mô tả không được vượt quá 255 ký tự":     "Description must not exceed 255 characters",
+			"Tạo role thành công":                     "Role created successfully",
+			"tên vai trò đã tồn tại trong hệ thống":   "Role name already exists",
+			"vai trò không tồn tại trong hệ thống":    "Role not found",
+			"vai trò phải chứa ít nhất một permission": "Role must contain at least one permission",
+			"tên vai trò phải từ 3 đến 50 ký tự":     "Role name must be between 3 and 50 characters",
 		},
 	}
 )

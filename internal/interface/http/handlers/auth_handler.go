@@ -444,3 +444,82 @@ func (h *AuthHandler) DeletePermissionById(c *gin.Context) {
 		"message": utils.Translate(c, utils.KeyDeletedSuccess),
 	})
 }
+
+// CreateRole godoc
+// @Summary      Tạo role mới
+// @Description  Tạo một role mới liên kết với danh sách permission IDs
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.CreateRoleRequest  true  "Thông tin role và danh sách permission IDs"
+// @Success      201      {object}  map[string]interface{}
+// @Failure      400      {object}  map[string]string
+// @Failure      409      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/roles [post]
+func (h *AuthHandler) CreateRole(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	var req dto.CreateRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	id, err := h.AuthService.CreateRole(c.Request.Context(), req, lang)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrPermissionNotFound:   http.StatusBadRequest,
+			domain.ErrEmptyRolePermissions: http.StatusBadRequest,
+			domain.ErrRoleNameDuplicate:    http.StatusConflict,
+		})
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"id":      id,
+		"message": utils.Translate(c, "Tạo role thành công"),
+	})
+}
+
+// ListRoles godoc
+// @Summary      Danh sách roles (phân trang và tìm kiếm)
+// @Description  Lấy danh sách roles kèm permissions với pagination và tìm kiếm
+// @Tags         auth
+// @Produce      json
+// @Param        page    query     int     false  "Trang hiện tại (default: 1)"
+// @Param        limit   query     int     false  "Số bản ghi mỗi trang (default: 10, max: 50)"
+// @Param        search  query     string  false  "Từ khóa tìm kiếm (theo tên hoặc mô tả)"
+// @Success      200     {object}  dto.RolePaginationResponse
+// @Failure      500     {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/roles [get]
+func (h *AuthHandler) ListRoles(c *gin.Context) {
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+	search := strings.TrimSpace(c.Query("search"))
+	if search == "" {
+		search = strings.TrimSpace(c.Query("q"))
+	}
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	resp, err := h.AuthService.GetRolesPaging(c.Request.Context(), page, limit, search)
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.Success(c, resp)
+}

@@ -21,9 +21,18 @@ type AuthService struct {
 	resourcesRepo  domain.ResourceRepository
 	policyRepo     domain.PolicyRepository
 	permissionRepo domain.PermissionRepository
+	roleRepo       domain.RoleRepository
 }
 
-func NewAuthService(cfg *config.Config, actionRepo domain.ActionRepository, authRepo domain.AuthRepository, resourcesRepo domain.ResourceRepository, policyRepo domain.PolicyRepository, permissionRepo domain.PermissionRepository) *AuthService {
+func NewAuthService(
+	cfg *config.Config,
+	actionRepo domain.ActionRepository,
+	authRepo domain.AuthRepository,
+	resourcesRepo domain.ResourceRepository,
+	policyRepo domain.PolicyRepository,
+	permissionRepo domain.PermissionRepository,
+	roleRepo domain.RoleRepository,
+) *AuthService {
 	return &AuthService{
 		config:         cfg,
 		actionRepo:     actionRepo,
@@ -31,6 +40,7 @@ func NewAuthService(cfg *config.Config, actionRepo domain.ActionRepository, auth
 		resourcesRepo:  resourcesRepo,
 		policyRepo:     policyRepo,
 		permissionRepo: permissionRepo,
+		roleRepo:       roleRepo,
 	}
 }
 
@@ -361,8 +371,6 @@ func (s *AuthService) UpdatePermissionById(ctx context.Context, id int, req dto.
 	return s.permissionRepo.GetPermissionById(ctx, id)
 }
 
-// DeletePermissionById deletes a permission by its ID and its associated policy mappings.
-// Complies with OWASP A01 (Broken Access Control / IDOR defense) and A04 (Insecure Design).
 func (s *AuthService) DeletePermissionById(ctx context.Context, id int, lang string) error {
 	if id <= 0 {
 		return domain.ErrPermissionNotFound
@@ -377,4 +385,112 @@ func (s *AuthService) DeletePermissionById(ctx context.Context, id int, lang str
 	}
 
 	return s.permissionRepo.DeletePermissionById(ctx, id)
+}
+
+func (s *AuthService) CreateRole(ctx context.Context, req dto.CreateRoleRequest, lang string) (int, error) {
+	name := strings.TrimSpace(req.Name)
+	desc := strings.TrimSpace(req.Description)
+
+	if len(name) < 3 || len(name) > 50 {
+		return 0, errors.New("tên vai trò phải từ 3 đến 50 ký tự")
+	}
+
+	permMap := make(map[int]struct{})
+	var uniquePermIDs []int
+	for _, id := range req.PermissionIDs {
+		if id <= 0 {
+			return 0, domain.ErrPermissionNotFound
+		}
+		if _, exists := permMap[id]; !exists {
+			permMap[id] = struct{}{}
+			uniquePermIDs = append(uniquePermIDs, id)
+		}
+	}
+
+	if len(uniquePermIDs) == 0 {
+		return 0, domain.ErrEmptyRolePermissions
+	}
+
+	existing, err := s.roleRepo.GetRoleByName(ctx, name)
+	if err != nil {
+		return 0, err
+	}
+	if existing != nil {
+		return existing.ID, domain.ErrRoleNameDuplicate
+	}
+
+	valid, err := s.roleRepo.ValidatePermissionIDs(ctx, uniquePermIDs)
+	if err != nil {
+		return 0, err
+	}
+	if !valid {
+		return 0, domain.ErrPermissionNotFound
+	}
+
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
+
+	now := time.Now()
+	role := &domain.Role{
+		Name:        name,
+		Description: desc,
+		IsActive:    isActive,
+		IsSystem:    false,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := s.roleRepo.CreateWithPermissions(ctx, role, uniquePermIDs); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return 0, domain.ErrRoleNameDuplicate
+		}
+		return 0, err
+	}
+
+	return role.ID, nil
+}
+
+func (s *AuthService) GetRolesPaging(ctx context.Context, page, limit int, search string) (*dto.RolePaginationResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	search = strings.TrimSpace(search)
+	if len(search) > 100 {
+		search = search[:100]
+	}
+
+	offset := (page - 1) * limit
+
+	roles, err := s.roleRepo.GetRolesPaging(ctx, search, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	total, err := s.roleRepo.Count(ctx, search)
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = int((total + int64(limit) - 1) / int64(limit))
+	}
+
+	return &dto.RolePaginationResponse{
+		Items:      roles,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
 }

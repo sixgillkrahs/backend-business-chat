@@ -68,6 +68,27 @@ definitions:
       updated_at:
         type: string
     type: object
+  domain.Role:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_system:
+        type: boolean
+      name:
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/domain.Permission'
+        type: array
+      updated_at:
+        type: string
+    type: object
   dto.CreatePermissionRequest:
     properties:
       description:
@@ -85,6 +106,26 @@ definitions:
     required:
     - name
     - policy_ids
+    type: object
+  dto.CreateRoleRequest:
+    properties:
+      description:
+        maxLength: 255
+        type: string
+      is_active:
+        type: boolean
+      name:
+        maxLength: 50
+        minLength: 3
+        type: string
+      permission_ids:
+        items:
+          type: integer
+        minItems: 1
+        type: array
+    required:
+    - name
+    - permission_ids
     type: object
   dto.LoginRequest:
     properties:
@@ -141,6 +182,21 @@ definitions:
     - idempotence_key
     - name
     - resource_id
+    type: object
+  dto.RolePaginationResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.Role'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
     type: object
   dto.UpdatePermissionRequest:
     properties:
@@ -673,6 +729,82 @@ paths:
       security:
       - BearerAuth: []
       summary: Danh sách resources
+      tags:
+      - auth
+  /auth/roles:
+    get:
+      description: Lấy danh sách roles kèm permissions với pagination và tìm kiếm
+      parameters:
+      - description: 'Trang hiện tại (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Số bản ghi mỗi trang (default: 10, max: 50)'
+        in: query
+        name: limit
+        type: integer
+      - description: Từ khóa tìm kiếm (theo tên hoặc mô tả)
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RolePaginationResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách roles (phân trang và tìm kiếm)
+      tags:
+      - auth
+    post:
+      consumes:
+      - application/json
+      description: Tạo một role mới liên kết với danh sách permission IDs
+      parameters:
+      - description: Thông tin role và danh sách permission IDs
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Tạo role mới
       tags:
       - auth
 securityDefinitions:

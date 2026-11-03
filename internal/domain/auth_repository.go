@@ -36,3 +36,12 @@ type PermissionRepository interface {
 	UpdateWithPolicies(ctx context.Context, permission *Permission, policyIDs []int) error
 	DeletePermissionById(ctx context.Context, id int) error
 }
+
+type RoleRepository interface {
+	GetRolesPaging(ctx context.Context, search string, offset, limit int) ([]Role, error)
+	Count(ctx context.Context, search string) (int64, error)
+	CreateWithPermissions(ctx context.Context, role *Role, permissionIDs []int) error
+	GetRoleByName(ctx context.Context, name string) (*Role, error)
+	GetRoleById(ctx context.Context, id int) (*Role, error)
+	ValidatePermissionIDs(ctx context.Context, permissionIDs []int) (bool, error)
+}

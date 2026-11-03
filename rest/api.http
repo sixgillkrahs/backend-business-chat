@@ -51,3 +51,17 @@ Content-Type: application/json
 
 ### 10. Delete Permission by ID
 DELETE {{baseUrl}}/v1/api/auth/permissions/1 HTTP/1.1
+
+### 11. Create Role
+POST {{baseUrl}}/v1/api/auth/roles HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "ROLE_MODERATOR",
+  "description": "Quản trị viên nội dung và người dùng",
+  "is_active": true,
+  "permission_ids": [1]
+}
+
+### 12. Get Roles (Pagination & Search)
+GET {{baseUrl}}/v1/api/auth/roles?page=1&limit=10&search= HTTP/1.1
