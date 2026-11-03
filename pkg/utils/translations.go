@@ -48,6 +48,11 @@ var (
 			"email không hợp lệ":                      "Email không hợp lệ",
 			"permission không tồn tại trong hệ thống": "Permission không tồn tại trong hệ thống",
 			"ID không hợp lệ":                         "ID không hợp lệ",
+			"tên permission đã tồn tại trong hệ thống": "Tên permission đã tồn tại trong hệ thống",
+			"một hoặc nhiều policy không tồn tại trong hệ thống": "Một hoặc nhiều policy không tồn tại trong hệ thống",
+			"permission phải chứa ít nhất một policy": "Permission phải chứa ít nhất một policy",
+			"tên permission phải từ 3 đến 50 ký tự":   "Tên permission phải từ 3 đến 50 ký tự",
+			"mô tả không được vượt quá 255 ký tự":     "Mô tả không được vượt quá 255 ký tự",
 		},
 		"en": {
 			KeySuccess:             "Success",
@@ -76,6 +81,11 @@ var (
 			"email không hợp lệ":                      "Invalid email address",
 			"permission không tồn tại trong hệ thống": "Permission not found",
 			"ID không hợp lệ":                         "Invalid ID",
+			"tên permission đã tồn tại trong hệ thống": "Permission name already exists",
+			"một hoặc nhiều policy không tồn tại trong hệ thống": "One or more policies do not exist",
+			"permission phải chứa ít nhất một policy": "Permission must contain at least one policy",
+			"tên permission phải từ 3 đến 50 ký tự":   "Permission name must be between 3 and 50 characters",
+			"mô tả không được vượt quá 255 ký tự":     "Description must not exceed 255 characters",
 		},
 	}
 )

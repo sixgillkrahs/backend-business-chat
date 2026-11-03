@@ -64,6 +64,46 @@ func (r *permissionRepository) CreateWithPolicies(ctx context.Context, permissio
 	return nil
 }
 
+func (r *permissionRepository) UpdateWithPolicies(ctx context.Context, permission *domain.Permission, policyIDs []int) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	updatePermQuery := `
+		UPDATE permission
+		SET name = $1, description = $2, updated_at = $3
+		WHERE id = $4
+	`
+	tag, err := tx.Exec(ctx, updatePermQuery, permission.Name, permission.Description, permission.UpdatedAt, permission.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update permission: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrPermissionNotFound
+	}
+
+	if policyIDs != nil {
+		deleteLinkQuery := `DELETE FROM permission_policies WHERE permission_id = $1`
+		if _, err := tx.Exec(ctx, deleteLinkQuery, permission.ID); err != nil {
+			return fmt.Errorf("failed to delete old permission policies: %w", err)
+		}
+
+		insertLinkQuery := `INSERT INTO permission_policies (permission_id, policy_id) VALUES ($1, $2)`
+		for _, policyID := range policyIDs {
+			if _, err := tx.Exec(ctx, insertLinkQuery, permission.ID, policyID); err != nil {
+				return fmt.Errorf("failed to link policy %d to permission: %w", policyID, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit permission update transaction: %w", err)
+	}
+	return nil
+}
+
 func (r *permissionRepository) GetPermissionByName(ctx context.Context, name string) (*domain.Permission, error) {
 	query := `SELECT id, name, COALESCE(description, ''), created_at, updated_at FROM permission WHERE name = $1`
 	var p domain.Permission

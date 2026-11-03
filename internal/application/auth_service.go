@@ -279,3 +279,84 @@ func (s *AuthService) GetPermissionById(ctx context.Context, id int) (*domain.Pe
 
 	return perm, nil
 }
+
+func (s *AuthService) UpdatePermissionById(ctx context.Context, id int, req dto.UpdatePermissionRequest, lang string) (*domain.Permission, error) {
+	if id <= 0 {
+		return nil, domain.ErrPermissionNotFound
+	}
+
+	perm, err := s.permissionRepo.GetPermissionById(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if perm == nil {
+		return nil, domain.ErrPermissionNotFound
+	}
+
+	if req.Name == nil && req.Description == nil && req.PolicyIDs == nil {
+		return perm, nil
+	}
+
+	if req.Name != nil {
+		trimmedName := strings.TrimSpace(*req.Name)
+		if len(trimmedName) < 3 || len(trimmedName) > 50 {
+			return nil, errors.New("tên permission phải từ 3 đến 50 ký tự")
+		}
+		if trimmedName != perm.Name {
+			existing, err := s.permissionRepo.GetPermissionByName(ctx, trimmedName)
+			if err != nil {
+				return nil, err
+			}
+			if existing != nil && existing.ID != id {
+				return nil, domain.ErrPermissionNameDuplicate
+			}
+			perm.Name = trimmedName
+		}
+	}
+
+	if req.Description != nil {
+		trimmedDesc := strings.TrimSpace(*req.Description)
+		if len(trimmedDesc) > 255 {
+			return nil, errors.New("mô tả không được vượt quá 255 ký tự")
+		}
+		perm.Description = trimmedDesc
+	}
+
+	var uniquePolicyIDs []int
+	if req.PolicyIDs != nil {
+		policyMap := make(map[int]struct{})
+		for _, pid := range req.PolicyIDs {
+			if pid <= 0 {
+				return nil, domain.ErrPolicyNotFound
+			}
+			if _, exists := policyMap[pid]; !exists {
+				policyMap[pid] = struct{}{}
+				uniquePolicyIDs = append(uniquePolicyIDs, pid)
+			}
+		}
+
+		if len(uniquePolicyIDs) == 0 {
+			return nil, domain.ErrEmptyPolicies
+		}
+
+		valid, err := s.permissionRepo.ValidatePolicyIDs(ctx, uniquePolicyIDs)
+		if err != nil {
+			return nil, err
+		}
+		if !valid {
+			return nil, domain.ErrPolicyNotFound
+		}
+	}
+
+	perm.UpdatedAt = time.Now()
+
+	if err := s.permissionRepo.UpdateWithPolicies(ctx, perm, uniquePolicyIDs); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, domain.ErrPermissionNameDuplicate
+		}
+		return nil, err
+	}
+
+	return s.permissionRepo.GetPermissionById(ctx, id)
+}

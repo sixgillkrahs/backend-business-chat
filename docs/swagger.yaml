@@ -142,6 +142,21 @@ definitions:
     - name
     - resource_id
     type: object
+  dto.UpdatePermissionRequest:
+    properties:
+      description:
+        maxLength: 255
+        type: string
+      name:
+        maxLength: 50
+        minLength: 3
+        type: string
+      policy_ids:
+        items:
+          type: integer
+        minItems: 1
+        type: array
+    type: object
   dto.UpdatePolicyRequest:
     properties:
       action_id:
@@ -352,6 +367,59 @@ paths:
       security:
       - BearerAuth: []
       summary: Chi tiết permission theo ID
+      tags:
+      - auth
+    put:
+      consumes:
+      - application/json
+      description: Cập nhật thông tin của một permission và danh sách policies theo
+        ID
+      parameters:
+      - description: ID của permission
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Thông tin cập nhật permission
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdatePermissionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Permission'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cập nhật permission theo ID
       tags:
       - auth
   /auth/policies:

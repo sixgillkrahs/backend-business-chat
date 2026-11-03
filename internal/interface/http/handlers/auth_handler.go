@@ -367,3 +367,47 @@ func (h *AuthHandler) GetPermissionById(c *gin.Context) {
 
 	utils.Success(c, perm)
 }
+
+// UpdatePermissionById godoc
+// @Summary      Cập nhật permission theo ID
+// @Description  Cập nhật thông tin của một permission và danh sách policies theo ID
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int                         true  "ID của permission"
+// @Param        request  body      dto.UpdatePermissionRequest true  "Thông tin cập nhật permission"
+// @Success      200      {object}  domain.Permission
+// @Failure      400      {object}  map[string]string
+// @Failure      404      {object}  map[string]string
+// @Failure      409      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/permissions/{id} [put]
+func (h *AuthHandler) UpdatePermissionById(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		utils.Error(c, http.StatusBadRequest, "ID không hợp lệ")
+		return
+	}
+
+	var req dto.UpdatePermissionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	lang := utils.GetLanguageFromContext(c)
+	perm, err := h.AuthService.UpdatePermissionById(c.Request.Context(), id, req, lang)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrPermissionNotFound:      http.StatusNotFound,
+			domain.ErrPermissionNameDuplicate: http.StatusConflict,
+			domain.ErrPolicyNotFound:          http.StatusBadRequest,
+			domain.ErrEmptyPolicies:           http.StatusBadRequest,
+		})
+		return
+	}
+
+	utils.Success(c, perm)
+}
