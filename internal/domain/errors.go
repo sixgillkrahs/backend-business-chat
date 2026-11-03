@@ -16,4 +16,7 @@ var (
 	ErrSystemRoleProtected     = errors.New("không thể chỉnh sửa vai trò hệ thống")
 	ErrSystemRoleCannotDelete  = errors.New("không thể xóa vai trò mặc định của hệ thống")
 	ErrRoleInUse               = errors.New("không thể xóa vai trò đang được gán cho người dùng")
+	ErrUsernameDuplicate       = errors.New("tên đăng nhập đã tồn tại trong hệ thống")
+	ErrEmailDuplicate          = errors.New("địa chỉ email đã tồn tại trong hệ thống")
+	ErrPasswordTooShort        = errors.New("mật khẩu phải có độ dài từ 8 đến 72 ký tự")
 )

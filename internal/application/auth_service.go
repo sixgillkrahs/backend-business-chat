@@ -22,6 +22,7 @@ type AuthService struct {
 	policyRepo     domain.PolicyRepository
 	permissionRepo domain.PermissionRepository
 	roleRepo       domain.RoleRepository
+	userRepo       domain.UserRepository
 }
 
 func NewAuthService(
@@ -32,6 +33,7 @@ func NewAuthService(
 	policyRepo domain.PolicyRepository,
 	permissionRepo domain.PermissionRepository,
 	roleRepo domain.RoleRepository,
+	userRepo domain.UserRepository,
 ) *AuthService {
 	return &AuthService{
 		config:         cfg,
@@ -41,6 +43,7 @@ func NewAuthService(
 		policyRepo:     policyRepo,
 		permissionRepo: permissionRepo,
 		roleRepo:       roleRepo,
+		userRepo:       userRepo,
 	}
 }
 
@@ -610,4 +613,76 @@ func (s *AuthService) DeleteRoleById(ctx context.Context, id int, lang string) e
 	}
 
 	return s.roleRepo.DeleteRoleById(ctx, id)
+}
+
+func (s *AuthService) CreateUser(ctx context.Context, req dto.CreateUserRequest, lang string, createdBy string) (*domain.User, error) {
+	username := strings.TrimSpace(req.Username)
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	fullName := strings.TrimSpace(req.FullName)
+
+	if len(req.Password) < 8 || len(req.Password) > 72 {
+		return nil, domain.ErrPasswordTooShort
+	}
+
+	if createdBy == "" {
+		createdBy = "system"
+	} else if len(createdBy) > 20 {
+		createdBy = createdBy[:20]
+	}
+
+	role, err := s.roleRepo.GetRoleById(ctx, req.RoleID)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil {
+		return nil, domain.ErrRoleNotFound
+	}
+
+	existingUser, err := s.userRepo.FindByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	if existingUser != nil {
+		return nil, domain.ErrUsernameDuplicate
+	}
+
+	existingEmail, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if existingEmail != nil {
+		return nil, domain.ErrEmailDuplicate
+	}
+
+	passwordHash, err := utils.HashPassword(req.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &domain.User{
+		Username:    username,
+		Email:       email,
+		FullName:    fullName,
+		AvatarURL:   strings.TrimSpace(req.AvatarURL),
+		PhoneNumber: strings.TrimSpace(req.PhoneNumber),
+		Address:     strings.TrimSpace(req.Address),
+		RoleID:      &req.RoleID,
+		IsActive:    true,
+		IsDeleted:   false,
+		CreatedBy:   createdBy,
+		UpdatedBy:   createdBy,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := user.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := s.userRepo.CreateWithAuth(ctx, user, passwordHash); err != nil {
+		return nil, err
+	}
+
+	user.Role = role
+	return user, nil
 }

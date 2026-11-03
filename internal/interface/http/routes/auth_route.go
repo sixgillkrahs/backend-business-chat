@@ -33,5 +33,8 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 		api.POST("/roles", authHandler.CreateRole)
 		api.PUT("/roles/:id", authHandler.UpdateRoleById)
 		api.DELETE("/roles/:id", authHandler.DeleteRoleById)
+
+		// users
+		api.POST("/users", authHandler.CreateUser)
 	}
 }

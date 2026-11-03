@@ -607,3 +607,50 @@ func (h *AuthHandler) DeleteRoleById(c *gin.Context) {
 		"message": utils.Translate(c, "Xóa vai trò thành công"),
 	})
 }
+
+// CreateUser godoc
+// @Summary      Tạo người dùng mới
+// @Description  Tạo tài khoản người dùng mới cùng với thông tin đăng nhập và lưu lịch sử mật khẩu theo chuẩn OWASP
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.CreateUserRequest  true  "Thông tin người dùng mới"
+// @Success      201      {object}  utils.Response{data=domain.User}
+// @Failure      400      {object}  utils.Response
+// @Failure      409      {object}  utils.Response
+// @Failure      500      {object}  utils.Response
+// @Security     BearerAuth
+// @Router       /auth/users [post]
+func (h *AuthHandler) CreateUser(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	var req dto.CreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	createdBy := c.GetString("username")
+	if createdBy == "" {
+		createdBy = "system"
+	}
+
+	user, err := h.AuthService.CreateUser(c.Request.Context(), req, lang, createdBy)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrUsernameDuplicate: http.StatusConflict,
+			domain.ErrEmailDuplicate:    http.StatusConflict,
+			domain.ErrRoleNotFound:      http.StatusBadRequest,
+			domain.ErrPasswordTooShort:  http.StatusBadRequest,
+			domain.ErrUsernameInvalid:   http.StatusBadRequest,
+			domain.ErrEmailInvalid:      http.StatusBadRequest,
+			domain.ErrFullNameInvalid:   http.StatusBadRequest,
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, utils.Response{
+		Code:    http.StatusCreated,
+		Message: utils.Translate(c, "Tạo người dùng thành công"),
+		Data:    user,
+	})
+}
