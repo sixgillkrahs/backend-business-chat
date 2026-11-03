@@ -10,3 +10,14 @@ type CreateUserRequest struct {
 	AvatarURL   string `json:"avatar_url" binding:"omitempty,url,max=255"`
 	RoleID      int    `json:"role_id" binding:"required,gt=0"`
 }
+
+type UpdateUserRequest struct {
+	Username    *string `json:"username" binding:"omitempty,min=3,max=50"`
+	Email       *string `json:"email" binding:"omitempty,email,max=100"`
+	FullName    *string `json:"full_name" binding:"omitempty,min=1,max=100"`
+	PhoneNumber *string `json:"phone_number" binding:"omitempty,max=20"`
+	Address     *string `json:"address" binding:"omitempty,max=255"`
+	AvatarURL   *string `json:"avatar_url" binding:"omitempty,url,max=255"`
+	RoleID      *int    `json:"role_id" binding:"omitempty,gt=0"`
+	IsActive    *bool   `json:"is_active,omitempty"`
+}

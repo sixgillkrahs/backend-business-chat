@@ -48,10 +48,12 @@ func (m *mockRoleRepo) CountUsersByRoleId(ctx context.Context, roleId int) (int6
 // Mock User Repository
 type mockUserRepo struct {
 	users           []domain.User
+	usersByID       map[int]*domain.User
 	usersByUsername map[string]*domain.User
 	usersByEmail    map[string]*domain.User
 	createdUser     *domain.User
 	createdHash     string
+	updatedUser     *domain.User
 	lastLimit       int
 	lastOffset      int
 	lastSearch      string
@@ -64,7 +66,15 @@ func (m *mockUserRepo) CreateWithAuth(ctx context.Context, user *domain.User, pa
 	user.ID = 100
 	return nil
 }
-func (m *mockUserRepo) FindByID(ctx context.Context, id int) (*domain.User, error) { return nil, nil }
+func (m *mockUserRepo) FindByID(ctx context.Context, id int) (*domain.User, error) {
+	if m.usersByID != nil {
+		if u, ok := m.usersByID[id]; ok {
+			copied := *u
+			return &copied, nil
+		}
+	}
+	return nil, nil
+}
 func (m *mockUserRepo) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	if u, ok := m.usersByEmail[email]; ok {
 		return u, nil
@@ -77,8 +87,14 @@ func (m *mockUserRepo) FindByUsername(ctx context.Context, username string) (*do
 	}
 	return nil, nil
 }
-func (m *mockUserRepo) Update(ctx context.Context, user *domain.User) error { return nil }
-func (m *mockUserRepo) Delete(ctx context.Context, id int) error            { return nil }
+func (m *mockUserRepo) Update(ctx context.Context, user *domain.User) error {
+	m.updatedUser = user
+	if m.usersByID != nil {
+		m.usersByID[user.ID] = user
+	}
+	return nil
+}
+func (m *mockUserRepo) Delete(ctx context.Context, id int) error { return nil }
 func (m *mockUserRepo) GetUsersPaging(ctx context.Context, search string, offset, limit int) ([]domain.User, error) {
 	m.lastLimit = limit
 	m.lastOffset = offset
@@ -153,7 +169,6 @@ func TestCreateUser_Success(t *testing.T) {
 		t.Errorf("expected role to be populated")
 	}
 
-	// Verify password hash was hashed with bcrypt
 	if !utils.CheckPasswordHash("SecurePassword123!", userRepo.createdHash) {
 		t.Errorf("password hash does not match original password via bcrypt")
 	}
@@ -241,7 +256,7 @@ func TestCreateUser_PasswordTooShort(t *testing.T) {
 	req := dto.CreateUserRequest{
 		Username: "validuser",
 		Email:    "valid@example.com",
-		Password: "123", // too short (< 8 chars)
+		Password: "123",
 		FullName: "Valid User",
 		RoleID:   1,
 	}
@@ -265,7 +280,6 @@ func TestGetUsersPaging_DefaultPagination(t *testing.T) {
 	userRepo := &mockUserRepo{users: users}
 	service := setupService(&mockRoleRepo{}, userRepo)
 
-	// Call with 0 limit and 0 offset -> should default to limit 10, offset 0
 	resp, err := service.GetUsersPaging(context.Background(), 0, 0, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -320,7 +334,6 @@ func TestGetUsersPaging_BoundsValidation(t *testing.T) {
 	userRepo := &mockUserRepo{users: []domain.User{}}
 	service := setupService(&mockRoleRepo{}, userRepo)
 
-	// 1. Limit > 50 clamped to 50
 	resp, err := service.GetUsersPaging(context.Background(), 100, -5, strings.Repeat("a", 150))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -356,5 +369,172 @@ func TestGetUsersPaging_Search(t *testing.T) {
 	}
 	if len(resp.Items) != 2 {
 		t.Errorf("expected 2 items, got: %d", len(resp.Items))
+	}
+}
+
+func TestGetUserById(t *testing.T) {
+	initialUser := &domain.User{
+		ID:       10,
+		Username: "existing_user",
+		Email:    "existing@example.com",
+		FullName: "Existing User",
+		IsActive: true,
+	}
+	userRepo := &mockUserRepo{
+		usersByID: map[int]*domain.User{10: initialUser},
+	}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	u, err := service.GetUserById(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+	if u.ID != 10 || u.Username != "existing_user" {
+		t.Errorf("expected user ID 10, got %d", u.ID)
+	}
+
+	_, err = service.GetUserById(context.Background(), 999)
+	if err != domain.ErrUserNotFound {
+		t.Errorf("expected ErrUserNotFound, got %v", err)
+	}
+
+	_, err = service.GetUserById(context.Background(), 0)
+	if err != domain.ErrUserNotFound {
+		t.Errorf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestUpdateUserById_Success(t *testing.T) {
+	currentRoleID := 1
+	initialUser := &domain.User{
+		ID:       10,
+		Username: "oldusername",
+		Email:    "old@example.com",
+		FullName: "Old Name",
+		RoleID:   &currentRoleID,
+		IsActive: true,
+	}
+
+	roleRepo := &mockRoleRepo{
+		roles: map[int]*domain.Role{
+			1: {ID: 1, Name: "Admin", IsActive: true},
+			2: {ID: 2, Name: "Manager", IsActive: true},
+		},
+	}
+	userRepo := &mockUserRepo{
+		usersByID:       map[int]*domain.User{10: initialUser},
+		usersByUsername: map[string]*domain.User{"oldusername": initialUser},
+		usersByEmail:    map[string]*domain.User{"old@example.com": initialUser},
+	}
+	service := setupService(roleRepo, userRepo)
+
+	newRoleID := 2
+	newFullName := "Updated Name"
+	newEmail := "updated@example.com"
+	newPhone := "0912345678"
+	newAddress := "123 Main St"
+	newActive := false
+
+	req := dto.UpdateUserRequest{
+		FullName:    &newFullName,
+		Email:       &newEmail,
+		PhoneNumber: &newPhone,
+		Address:     &newAddress,
+		RoleID:      &newRoleID,
+		IsActive:    &newActive,
+	}
+
+	updated, err := service.UpdateUserById(context.Background(), 10, req, "vi", "supervisor")
+	if err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+
+	if updated.FullName != "Updated Name" {
+		t.Errorf("expected FullName 'Updated Name', got %s", updated.FullName)
+	}
+	if updated.Email != "updated@example.com" {
+		t.Errorf("expected Email 'updated@example.com', got %s", updated.Email)
+	}
+	if updated.RoleID == nil || *updated.RoleID != 2 {
+		t.Errorf("expected RoleID 2, got %v", updated.RoleID)
+	}
+	if updated.Role == nil || updated.Role.Name != "Manager" {
+		t.Errorf("expected Role populated with Manager, got %v", updated.Role)
+	}
+	if updated.IsActive != false {
+		t.Errorf("expected IsActive false")
+	}
+	if updated.UpdatedBy != "supervisor" {
+		t.Errorf("expected UpdatedBy supervisor, got %s", updated.UpdatedBy)
+	}
+}
+
+func TestUpdateUserById_UserNotFound(t *testing.T) {
+	service := setupService(&mockRoleRepo{}, &mockUserRepo{usersByID: map[int]*domain.User{}})
+
+	newName := "Name"
+	req := dto.UpdateUserRequest{FullName: &newName}
+
+	_, err := service.UpdateUserById(context.Background(), 999, req, "vi", "admin")
+	if err != domain.ErrUserNotFound {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestUpdateUserById_DuplicateUsername(t *testing.T) {
+	user1 := &domain.User{ID: 1, Username: "alice", Email: "alice@example.com", FullName: "Alice"}
+	user2 := &domain.User{ID: 2, Username: "bob", Email: "bob@example.com", FullName: "Bob"}
+
+	userRepo := &mockUserRepo{
+		usersByID:       map[int]*domain.User{1: user1, 2: user2},
+		usersByUsername: map[string]*domain.User{"alice": user1, "bob": user2},
+		usersByEmail:    map[string]*domain.User{"alice@example.com": user1, "bob@example.com": user2},
+	}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	targetUsername := "bob"
+	req := dto.UpdateUserRequest{Username: &targetUsername}
+
+	_, err := service.UpdateUserById(context.Background(), 1, req, "vi", "admin")
+	if err != domain.ErrUsernameDuplicate {
+		t.Fatalf("expected ErrUsernameDuplicate, got %v", err)
+	}
+}
+
+func TestUpdateUserById_DuplicateEmail(t *testing.T) {
+	user1 := &domain.User{ID: 1, Username: "alice", Email: "alice@example.com", FullName: "Alice"}
+	user2 := &domain.User{ID: 2, Username: "bob", Email: "bob@example.com", FullName: "Bob"}
+
+	userRepo := &mockUserRepo{
+		usersByID:       map[int]*domain.User{1: user1, 2: user2},
+		usersByUsername: map[string]*domain.User{"alice": user1, "bob": user2},
+		usersByEmail:    map[string]*domain.User{"alice@example.com": user1, "bob@example.com": user2},
+	}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	targetEmail := "bob@example.com"
+	req := dto.UpdateUserRequest{Email: &targetEmail}
+
+	_, err := service.UpdateUserById(context.Background(), 1, req, "vi", "admin")
+	if err != domain.ErrEmailDuplicate {
+		t.Fatalf("expected ErrEmailDuplicate, got %v", err)
+	}
+}
+
+func TestUpdateUserById_RoleNotFound(t *testing.T) {
+	user1 := &domain.User{ID: 1, Username: "alice", Email: "alice@example.com", FullName: "Alice"}
+
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{}}
+	userRepo := &mockUserRepo{
+		usersByID: map[int]*domain.User{1: user1},
+	}
+	service := setupService(roleRepo, userRepo)
+
+	invalidRoleID := 999
+	req := dto.UpdateUserRequest{RoleID: &invalidRoleID}
+
+	_, err := service.UpdateUserById(context.Background(), 1, req, "vi", "admin")
+	if err != domain.ErrRoleNotFound {
+		t.Fatalf("expected ErrRoleNotFound, got %v", err)
 	}
 }

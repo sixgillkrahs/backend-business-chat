@@ -226,7 +226,6 @@ func (h *AuthHandler) UpdatePolicyById(c *gin.Context) {
 	utils.Success(c, policy)
 }
 
-
 // DeletePolicyById godoc
 // @Summary      Xóa policy theo ID
 // @Description  Xóa một policy khỏi hệ thống theo ID
@@ -254,7 +253,6 @@ func (h *AuthHandler) DeletePolicyById(c *gin.Context) {
 
 	utils.Success(c, gin.H{"message": "Xóa thành công"})
 }
-
 
 // CreatePermission godoc
 // @Summary      Tạo permission mới
@@ -292,7 +290,6 @@ func (h *AuthHandler) CreatePermission(c *gin.Context) {
 		"message": "Tạo permission thành công",
 	})
 }
-
 
 // ListPermissions godoc
 // @Summary      Danh sách permissions (phân trang limit & offset)
@@ -570,7 +567,6 @@ func (h *AuthHandler) UpdateRoleById(c *gin.Context) {
 	utils.Success(c, role)
 }
 
-
 // DeleteRoleById godoc
 // @Summary      Xóa role theo ID
 // @Description  Xóa một vai trò (role) khỏi hệ thống theo ID (không thể xóa vai trò hệ thống hoặc vai trò đang được gán cho người dùng)
@@ -696,4 +692,87 @@ func (h *AuthHandler) CreateUser(c *gin.Context) {
 		Message: utils.Translate(c, "Tạo người dùng thành công"),
 		Data:    user,
 	})
+}
+
+// GetUserById godoc
+// @Summary      Chi tiết người dùng theo ID
+// @Description  Lấy thông tin chi tiết người dùng kèm vai trò (role) theo ID
+// @Tags         auth
+// @Produce      json
+// @Param        id   path      int  true  "ID của người dùng"
+// @Success      200  {object}  domain.User
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/users/{id} [get]
+func (h *AuthHandler) GetUserById(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		utils.Error(c, http.StatusBadRequest, "ID người dùng không hợp lệ")
+		return
+	}
+
+	user, err := h.AuthService.GetUserById(c.Request.Context(), id)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrUserNotFound: http.StatusNotFound,
+		})
+		return
+	}
+
+	utils.Success(c, user)
+}
+
+// UpdateUserById godoc
+// @Summary      Cập nhật thông tin người dùng theo ID
+// @Description  Chỉnh sửa thông tin hồ sơ, vai trò hoặc trạng thái hoạt động của người dùng theo chuẩn OWASP
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int                    true  "ID của người dùng cần cập nhật"
+// @Param        request  body      dto.UpdateUserRequest  true  "Thông tin cập nhật người dùng"
+// @Success      200      {object}  domain.User
+// @Failure      400      {object}  map[string]string
+// @Failure      404      {object}  map[string]string
+// @Failure      409      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/users/{id} [put]
+func (h *AuthHandler) UpdateUserById(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		utils.Error(c, http.StatusBadRequest, "ID người dùng không hợp lệ")
+		return
+	}
+
+	lang := utils.GetLanguageFromContext(c)
+	var req dto.UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	updatedBy := c.GetString("username")
+	if updatedBy == "" {
+		updatedBy = "system"
+	}
+
+	user, err := h.AuthService.UpdateUserById(c.Request.Context(), id, req, lang, updatedBy)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrUserNotFound:      http.StatusNotFound,
+			domain.ErrUsernameDuplicate: http.StatusConflict,
+			domain.ErrEmailDuplicate:    http.StatusConflict,
+			domain.ErrRoleNotFound:      http.StatusBadRequest,
+			domain.ErrUsernameInvalid:   http.StatusBadRequest,
+			domain.ErrEmailInvalid:      http.StatusBadRequest,
+			domain.ErrFullNameInvalid:   http.StatusBadRequest,
+		})
+		return
+	}
+
+	utils.Success(c, user)
 }

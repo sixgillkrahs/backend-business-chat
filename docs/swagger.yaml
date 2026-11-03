@@ -343,6 +343,33 @@ definitions:
           type: integer
         type: array
     type: object
+  dto.UpdateUserRequest:
+    properties:
+      address:
+        maxLength: 255
+        type: string
+      avatar_url:
+        maxLength: 255
+        type: string
+      email:
+        maxLength: 100
+        type: string
+      full_name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      is_active:
+        type: boolean
+      phone_number:
+        maxLength: 20
+        type: string
+      role_id:
+        type: integer
+      username:
+        maxLength: 50
+        minLength: 3
+        type: string
+    type: object
   dto.UserPaginationResponse:
     properties:
       items:
@@ -1139,6 +1166,98 @@ paths:
       security:
       - BearerAuth: []
       summary: Tạo người dùng mới
+      tags:
+      - auth
+  /auth/users/{id}:
+    get:
+      description: Lấy thông tin chi tiết người dùng kèm vai trò (role) theo ID
+      parameters:
+      - description: ID của người dùng
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Chi tiết người dùng theo ID
+      tags:
+      - auth
+    put:
+      consumes:
+      - application/json
+      description: Chỉnh sửa thông tin hồ sơ, vai trò hoặc trạng thái hoạt động của
+        người dùng theo chuẩn OWASP
+      parameters:
+      - description: ID của người dùng cần cập nhật
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Thông tin cập nhật người dùng
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cập nhật thông tin người dùng theo ID
       tags:
       - auth
 securityDefinitions:

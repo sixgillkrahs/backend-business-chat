@@ -37,5 +37,7 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 		// users
 		api.GET("/users", authHandler.ListUsers)
 		api.POST("/users", authHandler.CreateUser)
+		api.GET("/users/:id", authHandler.GetUserById)
+		api.PUT("/users/:id", authHandler.UpdateUserById)
 	}
 }

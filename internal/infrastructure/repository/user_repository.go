@@ -126,15 +126,24 @@ func (r *userRepository) FindByID(ctx context.Context, id int) (*domain.User, er
 	query := `
 		SELECT u.id, u.username, u.email, u.full_name, COALESCE(u.avatar_url, ''), COALESCE(u.phone_number, ''),
 		       COALESCE(u.address, ''), u.role_id, u.is_active, u.is_deleted, u.created_by, u.updated_by,
-		       u.deleted_by, u.created_at, u.updated_at, u.deleted_at
+		       u.deleted_by, u.created_at, u.updated_at, u.deleted_at,
+		       r.id, COALESCE(r.name, ''), COALESCE(r.description, ''), COALESCE(r.isactive, false), COALESCE(r.issystem, false),
+		       r.created_at, r.updated_at
 		FROM users u
+		LEFT JOIN roles r ON u.role_id = r.id
 		WHERE u.id = $1 AND u.is_deleted = false
 	`
 	var u domain.User
+	var rID *int
+	var rName, rDesc string
+	var rActive, rSystem bool
+	var rCreatedAt, rUpdatedAt *time.Time
+
 	err := r.db.Pool.QueryRow(ctx, query, id).Scan(
 		&u.ID, &u.Username, &u.Email, &u.FullName, &u.AvatarURL, &u.PhoneNumber,
 		&u.Address, &u.RoleID, &u.IsActive, &u.IsDeleted, &u.CreatedBy, &u.UpdatedBy,
 		&u.DeletedBy, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt,
+		&rID, &rName, &rDesc, &rActive, &rSystem, &rCreatedAt, &rUpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -142,6 +151,26 @@ func (r *userRepository) FindByID(ctx context.Context, id int) (*domain.User, er
 		}
 		return nil, fmt.Errorf("failed to find user by id: %w", err)
 	}
+
+	if rID != nil {
+		var roleCreatedAt, roleUpdatedAt time.Time
+		if rCreatedAt != nil {
+			roleCreatedAt = *rCreatedAt
+		}
+		if rUpdatedAt != nil {
+			roleUpdatedAt = *rUpdatedAt
+		}
+		u.Role = &domain.Role{
+			ID:          *rID,
+			Name:        rName,
+			Description: rDesc,
+			IsActive:    rActive,
+			IsSystem:    rSystem,
+			CreatedAt:   roleCreatedAt,
+			UpdatedAt:   roleUpdatedAt,
+		}
+	}
+
 	return &u, nil
 }
 
@@ -192,17 +221,64 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*domain
 }
 
 func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
-	query := `
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	updateUserQuery := `
 		UPDATE users
-		SET full_name = $1, avatar_url = $2, phone_number = $3, address = $4,
-		    role_id = $5, is_active = $6, updated_by = $7, updated_at = $8
-		WHERE id = $9 AND is_deleted = false
+		SET username = $1, email = $2, full_name = $3, avatar_url = $4, phone_number = $5, address = $6,
+		    role_id = $7, is_active = $8, updated_by = $9, updated_at = $10
+		WHERE id = $11 AND is_deleted = false
 	`
-	_, err := r.db.Pool.Exec(ctx, query,
-		user.FullName, user.AvatarURL, user.PhoneNumber, user.Address,
+	cmdTag, err := tx.Exec(ctx, updateUserQuery,
+		user.Username, user.Email, user.FullName, user.AvatarURL, user.PhoneNumber, user.Address,
 		user.RoleID, user.IsActive, user.UpdatedBy, user.UpdatedAt, user.ID,
 	)
-	return err
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if strings.Contains(pgErr.ConstraintName, "username") {
+				return domain.ErrUsernameDuplicate
+			}
+			if strings.Contains(pgErr.ConstraintName, "email") {
+				return domain.ErrEmailDuplicate
+			}
+		}
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return domain.ErrUserNotFound
+	}
+
+	roleID := 0
+	if user.RoleID != nil {
+		roleID = *user.RoleID
+	}
+	updateAuthQuery := `
+		UPDATE auths
+		SET username = $1, role_id = $2, is_active = $3, updated_by = $4, updated_at = $5
+		WHERE user_id = $6 AND is_deleted = false
+	`
+	_, err = tx.Exec(ctx, updateAuthQuery,
+		user.Username, roleID, user.IsActive, user.UpdatedBy, user.UpdatedAt, user.ID,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if strings.Contains(pgErr.ConstraintName, "username") {
+				return domain.ErrUsernameDuplicate
+			}
+		}
+		return fmt.Errorf("failed to sync auth credentials: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
 }
 
 func (r *userRepository) Delete(ctx context.Context, id int) error {

@@ -719,3 +719,135 @@ func (s *AuthService) GetUsersPaging(ctx context.Context, limit, offset int, sea
 		Offset: offset,
 	}, nil
 }
+func (s *AuthService) GetUserById(ctx context.Context, id int) (*domain.User, error) {
+	if id <= 0 {
+		return nil, domain.ErrUserNotFound
+	}
+
+	user, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, domain.ErrUserNotFound
+	}
+
+	return user, nil
+}
+
+func (s *AuthService) UpdateUserById(ctx context.Context, id int, req dto.UpdateUserRequest, lang string, updatedBy string) (*domain.User, error) {
+	if id <= 0 {
+		return nil, domain.ErrUserNotFound
+	}
+
+	user, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, domain.ErrUserNotFound
+	}
+
+	if updatedBy == "" {
+		updatedBy = "system"
+	} else if len(updatedBy) > 20 {
+		updatedBy = updatedBy[:20]
+	}
+
+	if req.Username != nil {
+		trimmedUsername := strings.TrimSpace(*req.Username)
+		if trimmedUsername != user.Username {
+			existing, err := s.userRepo.FindByUsername(ctx, trimmedUsername)
+			if err != nil {
+				return nil, err
+			}
+			if existing != nil && existing.ID != user.ID {
+				return nil, domain.ErrUsernameDuplicate
+			}
+			user.Username = trimmedUsername
+		}
+	}
+
+	if req.Email != nil {
+		trimmedEmail := strings.ToLower(strings.TrimSpace(*req.Email))
+		if trimmedEmail != user.Email {
+			existing, err := s.userRepo.FindByEmail(ctx, trimmedEmail)
+			if err != nil {
+				return nil, err
+			}
+			if existing != nil && existing.ID != user.ID {
+				return nil, domain.ErrEmailDuplicate
+			}
+			user.Email = trimmedEmail
+		}
+	}
+
+	if req.FullName != nil {
+		trimmedFullName := strings.TrimSpace(*req.FullName)
+		user.FullName = trimmedFullName
+	}
+
+	if req.PhoneNumber != nil {
+		trimmedPhone := strings.TrimSpace(*req.PhoneNumber)
+		if len(trimmedPhone) > 20 {
+			return nil, errors.New("số điện thoại tối đa 20 ký tự")
+		}
+		user.PhoneNumber = trimmedPhone
+	}
+
+	if req.Address != nil {
+		trimmedAddress := strings.TrimSpace(*req.Address)
+		if len(trimmedAddress) > 255 {
+			return nil, errors.New("địa chỉ tối đa 255 ký tự")
+		}
+		user.Address = trimmedAddress
+	}
+
+	if req.AvatarURL != nil {
+		trimmedAvatar := strings.TrimSpace(*req.AvatarURL)
+		if len(trimmedAvatar) > 255 {
+			return nil, errors.New("đường dẫn ảnh đại diện tối đa 255 ký tự")
+		}
+		user.AvatarURL = trimmedAvatar
+	}
+
+	var role *domain.Role
+	if req.RoleID != nil {
+		if *req.RoleID <= 0 {
+			return nil, domain.ErrRoleNotFound
+		}
+		var err error
+		role, err = s.roleRepo.GetRoleById(ctx, *req.RoleID)
+		if err != nil {
+			return nil, err
+		}
+		if role == nil {
+			return nil, domain.ErrRoleNotFound
+		}
+		user.RoleID = req.RoleID
+	} else if user.RoleID != nil {
+		var err error
+		role, err = s.roleRepo.GetRoleById(ctx, *user.RoleID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if req.IsActive != nil {
+		user.IsActive = *req.IsActive
+	}
+
+	user.UpdatedBy = updatedBy
+	user.UpdatedAt = time.Now()
+
+	if err := user.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+
+	user.Role = role
+	return user, nil
+}
