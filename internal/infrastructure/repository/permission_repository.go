@@ -139,8 +139,6 @@ func (r *permissionRepository) GetPermissionById(ctx context.Context, id int) (*
 	return &p, nil
 }
 
-
-// Count counts the total number of permissions matching the search filter (OWASP A03 Parameterized query).
 func (r *permissionRepository) Count(ctx context.Context, search string) (int64, error) {
 	var query string
 	var args []interface{}
@@ -160,7 +158,6 @@ func (r *permissionRepository) Count(ctx context.Context, search string) (int64,
 	return count, nil
 }
 
-// GetPermissionsPaging retrieves paginated permissions and batch-loads their policies in 2 optimized queries (avoids N+1 query and prevents SQL Cartesian limits).
 func (r *permissionRepository) GetPermissionsPaging(ctx context.Context, search string, offset, limit int) ([]domain.Permission, error) {
 	var query string
 	var args []interface{}
@@ -212,7 +209,6 @@ func (r *permissionRepository) GetPermissionsPaging(ctx context.Context, search 
 		return permissions, nil
 	}
 
-	// Batch load all policies for the retrieved permissions in a single query
 	policiesQuery := `
 		SELECT 
 			pp.permission_id,

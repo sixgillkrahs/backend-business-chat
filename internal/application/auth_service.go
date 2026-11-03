@@ -231,21 +231,19 @@ func (s *AuthService) CreatePermission(ctx context.Context, req dto.CreatePermis
 	return perm.ID, nil
 }
 
-
 func (s *AuthService) GetPermissionsPaging(ctx context.Context, limit, offset int, search string) (*dto.PermissionPaginationResponse, error) {
-	// OWASP A04: Input boundary sanitization and defense in depth
 	if limit < 1 {
 		limit = 10
 	}
 	if limit > 50 {
-		limit = 50 // Enforce max page limit to prevent memory exhaustion / DoS
+		limit = 50
 	}
 	if offset < 0 {
 		offset = 0
 	}
 	search = strings.TrimSpace(search)
 	if len(search) > 100 {
-		search = search[:100] // Cap search string length
+		search = search[:100]
 	}
 
 	permissions, err := s.permissionRepo.GetPermissionsPaging(ctx, search, offset, limit)
@@ -266,8 +264,6 @@ func (s *AuthService) GetPermissionsPaging(ctx context.Context, limit, offset in
 	}, nil
 }
 
-// GetPermissionById retrieves a single permission by its ID along with its policies.
-// Implements OWASP A04 (Insecure Design) defense with input validation and A01 (Broken Access Control).
 func (s *AuthService) GetPermissionById(ctx context.Context, id int) (*domain.Permission, error) {
 	if id <= 0 {
 		return nil, domain.ErrPermissionNotFound

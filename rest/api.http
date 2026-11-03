@@ -1,4 +1,4 @@
-@baseUrl = http://localhost:8081
+@baseUrl = http://localhost:8000
 
 ### 1. Ping Server
 GET {{baseUrl}}/v1/api/ping HTTP/1.1

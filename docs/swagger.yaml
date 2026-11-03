@@ -153,7 +153,7 @@ definitions:
       resource_id:
         type: integer
     type: object
-host: localhost:8081
+host: localhost:8000
 info:
   contact:
     email: support@sixgillkrahs.com
