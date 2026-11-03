@@ -44,4 +44,5 @@ type RoleRepository interface {
 	GetRoleByName(ctx context.Context, name string) (*Role, error)
 	GetRoleById(ctx context.Context, id int) (*Role, error)
 	ValidatePermissionIDs(ctx context.Context, permissionIDs []int) (bool, error)
+	UpdateWithPermissions(ctx context.Context, role *Role, permissionIDs []int) error
 }

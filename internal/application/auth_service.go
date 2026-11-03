@@ -494,3 +494,92 @@ func (s *AuthService) GetRolesPaging(ctx context.Context, page, limit int, searc
 		TotalPages: totalPages,
 	}, nil
 }
+
+func (s *AuthService) UpdateRoleById(ctx context.Context, id int, req dto.UpdateRoleRequest, lang string) (*domain.Role, error) {
+	if id <= 0 {
+		return nil, domain.ErrRoleNotFound
+	}
+
+	role, err := s.roleRepo.GetRoleById(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil {
+		return nil, domain.ErrRoleNotFound
+	}
+
+	if role.IsSystem {
+		return nil, domain.ErrSystemRoleProtected
+	}
+
+	if req.Name == nil && req.Description == nil && req.IsActive == nil && req.PermissionIDs == nil {
+		return role, nil
+	}
+
+	if req.Name != nil {
+		trimmedName := strings.TrimSpace(*req.Name)
+		if len(trimmedName) < 3 || len(trimmedName) > 50 {
+			return nil, errors.New("tên vai trò phải từ 3 đến 50 ký tự")
+		}
+		if trimmedName != role.Name {
+			existing, err := s.roleRepo.GetRoleByName(ctx, trimmedName)
+			if err != nil {
+				return nil, err
+			}
+			if existing != nil && existing.ID != id {
+				return nil, domain.ErrRoleNameDuplicate
+			}
+			role.Name = trimmedName
+		}
+	}
+
+	if req.Description != nil {
+		trimmedDesc := strings.TrimSpace(*req.Description)
+		if len(trimmedDesc) > 255 {
+			return nil, errors.New("mô tả không được vượt quá 255 ký tự")
+		}
+		role.Description = trimmedDesc
+	}
+
+	if req.IsActive != nil {
+		role.IsActive = *req.IsActive
+	}
+
+	var uniquePermIDs []int
+	if req.PermissionIDs != nil {
+		permMap := make(map[int]struct{})
+		for _, pid := range req.PermissionIDs {
+			if pid <= 0 {
+				return nil, domain.ErrPermissionNotFound
+			}
+			if _, exists := permMap[pid]; !exists {
+				permMap[pid] = struct{}{}
+				uniquePermIDs = append(uniquePermIDs, pid)
+			}
+		}
+
+		if len(uniquePermIDs) == 0 {
+			return nil, domain.ErrEmptyRolePermissions
+		}
+
+		valid, err := s.roleRepo.ValidatePermissionIDs(ctx, uniquePermIDs)
+		if err != nil {
+			return nil, err
+		}
+		if !valid {
+			return nil, domain.ErrPermissionNotFound
+		}
+	}
+
+	role.UpdatedAt = time.Now()
+
+	if err := s.roleRepo.UpdateWithPermissions(ctx, role, uniquePermIDs); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, domain.ErrRoleNameDuplicate
+		}
+		return nil, err
+	}
+
+	return s.roleRepo.GetRoleById(ctx, id)
+}

@@ -7,6 +7,13 @@ type CreateRoleRequest struct {
 	PermissionIDs []int  `json:"permission_ids" binding:"required,min=1,dive,gt=0"`
 }
 
+type UpdateRoleRequest struct {
+	Name          *string `json:"name" binding:"omitempty,min=3,max=50"`
+	Description   *string `json:"description" binding:"omitempty,max=255"`
+	IsActive      *bool   `json:"is_active,omitempty"`
+	PermissionIDs []int   `json:"permission_ids" binding:"omitempty,dive,gt=0"`
+}
+
 type RoleResponse struct {
 	ID            int    `json:"id"`
 	Name          string `json:"name"`

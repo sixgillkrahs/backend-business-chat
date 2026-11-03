@@ -61,6 +61,7 @@ var (
 			"vai trò không tồn tại trong hệ thống":    "Vai trò không tồn tại trong hệ thống",
 			"vai trò phải chứa ít nhất một permission": "Vai trò phải chứa ít nhất một permission",
 			"tên vai trò phải từ 3 đến 50 ký tự":     "Tên vai trò phải từ 3 đến 50 ký tự",
+			"không thể chỉnh sửa vai trò hệ thống":   "Không thể chỉnh sửa vai trò hệ thống",
 		},
 		"en": {
 			KeySuccess:             "Success",
@@ -101,6 +102,7 @@ var (
 			"vai trò không tồn tại trong hệ thống":    "Role not found",
 			"vai trò phải chứa ít nhất một permission": "Role must contain at least one permission",
 			"tên vai trò phải từ 3 đến 50 ký tự":     "Role name must be between 3 and 50 characters",
+			"không thể chỉnh sửa vai trò hệ thống":   "Cannot modify system role",
 		},
 	}
 )

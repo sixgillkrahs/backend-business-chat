@@ -51,10 +51,13 @@ func (r *permissionRepository) CreateWithPolicies(ctx context.Context, permissio
 		return fmt.Errorf("failed to insert permission: %w", err)
 	}
 
-	insertLinkQuery := `INSERT INTO permission_policies (permission_id, policy_id) VALUES ($1, $2)`
-	for _, policyID := range policyIDs {
-		if _, err := tx.Exec(ctx, insertLinkQuery, permission.ID, policyID); err != nil {
-			return fmt.Errorf("failed to link policy %d to permission: %w", policyID, err)
+	if len(policyIDs) > 0 {
+		insertBatchQuery := `
+			INSERT INTO permission_policies (permission_id, policy_id)
+			SELECT $1, UNNEST($2::int[])
+		`
+		if _, err := tx.Exec(ctx, insertBatchQuery, permission.ID, policyIDs); err != nil {
+			return fmt.Errorf("failed to batch link policies to permission: %w", err)
 		}
 	}
 
@@ -90,10 +93,13 @@ func (r *permissionRepository) UpdateWithPolicies(ctx context.Context, permissio
 			return fmt.Errorf("failed to delete old permission policies: %w", err)
 		}
 
-		insertLinkQuery := `INSERT INTO permission_policies (permission_id, policy_id) VALUES ($1, $2)`
-		for _, policyID := range policyIDs {
-			if _, err := tx.Exec(ctx, insertLinkQuery, permission.ID, policyID); err != nil {
-				return fmt.Errorf("failed to link policy %d to permission: %w", policyID, err)
+		if len(policyIDs) > 0 {
+			insertBatchQuery := `
+				INSERT INTO permission_policies (permission_id, policy_id)
+				SELECT $1, UNNEST($2::int[])
+			`
+			if _, err := tx.Exec(ctx, insertBatchQuery, permission.ID, policyIDs); err != nil {
+				return fmt.Errorf("failed to batch link policies to permission: %w", err)
 			}
 		}
 	}

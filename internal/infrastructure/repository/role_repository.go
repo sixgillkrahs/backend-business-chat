@@ -51,15 +51,61 @@ func (r *roleRepository) CreateWithPermissions(ctx context.Context, role *domain
 		return fmt.Errorf("failed to insert role: %w", err)
 	}
 
-	insertLinkQuery := `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`
-	for _, permID := range permissionIDs {
-		if _, err := tx.Exec(ctx, insertLinkQuery, role.ID, permID); err != nil {
-			return fmt.Errorf("failed to link permission %d to role: %w", permID, err)
+	if len(permissionIDs) > 0 {
+		insertBatchQuery := `
+			INSERT INTO role_permissions (role_id, permission_id)
+			SELECT $1, UNNEST($2::int[])
+		`
+		if _, err := tx.Exec(ctx, insertBatchQuery, role.ID, permissionIDs); err != nil {
+			return fmt.Errorf("failed to batch link permissions to role: %w", err)
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit role creation transaction: %w", err)
+	}
+	return nil
+}
+
+func (r *roleRepository) UpdateWithPermissions(ctx context.Context, role *domain.Role, permissionIDs []int) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	updateRoleQuery := `
+		UPDATE roles
+		SET name = $1, description = $2, isactive = $3, updated_at = $4
+		WHERE id = $5
+	`
+	tag, err := tx.Exec(ctx, updateRoleQuery, role.Name, role.Description, role.IsActive, role.UpdatedAt, role.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update role: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrRoleNotFound
+	}
+
+	if permissionIDs != nil {
+		deleteLinkQuery := `DELETE FROM role_permissions WHERE role_id = $1`
+		if _, err := tx.Exec(ctx, deleteLinkQuery, role.ID); err != nil {
+			return fmt.Errorf("failed to delete old role permissions: %w", err)
+		}
+
+		if len(permissionIDs) > 0 {
+			insertBatchQuery := `
+				INSERT INTO role_permissions (role_id, permission_id)
+				SELECT $1, UNNEST($2::int[])
+			`
+			if _, err := tx.Exec(ctx, insertBatchQuery, role.ID, permissionIDs); err != nil {
+				return fmt.Errorf("failed to batch link permissions to role: %w", err)
+			}
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit role update transaction: %w", err)
 	}
 	return nil
 }

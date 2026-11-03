@@ -13,4 +13,5 @@ var (
 	ErrRoleNameDuplicate       = errors.New("tên vai trò đã tồn tại trong hệ thống")
 	ErrRoleNotFound            = errors.New("vai trò không tồn tại trong hệ thống")
 	ErrEmptyRolePermissions    = errors.New("vai trò phải chứa ít nhất một permission")
+	ErrSystemRoleProtected     = errors.New("không thể chỉnh sửa vai trò hệ thống")
 )

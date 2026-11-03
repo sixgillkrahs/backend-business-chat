@@ -224,6 +224,22 @@ definitions:
       resource_id:
         type: integer
     type: object
+  dto.UpdateRoleRequest:
+    properties:
+      description:
+        maxLength: 255
+        type: string
+      is_active:
+        type: boolean
+      name:
+        maxLength: 50
+        minLength: 3
+        type: string
+      permission_ids:
+        items:
+          type: integer
+        type: array
+    type: object
 host: localhost:8000
 info:
   contact:
@@ -805,6 +821,65 @@ paths:
       security:
       - BearerAuth: []
       summary: Tạo role mới
+      tags:
+      - auth
+  /auth/roles/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Cập nhật thông tin của một role và danh sách permissions theo ID
+      parameters:
+      - description: ID của role
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Thông tin cập nhật role
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Role'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cập nhật role theo ID
       tags:
       - auth
 securityDefinitions:
