@@ -824,6 +824,59 @@ paths:
       tags:
       - auth
   /auth/roles/{id}:
+    delete:
+      description: Xóa một vai trò (role) khỏi hệ thống theo ID (không thể xóa vai
+        trò hệ thống hoặc vai trò đang được gán cho người dùng)
+      parameters:
+      - description: ID của role cần xóa
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Xóa role theo ID
+      tags:
+      - auth
     put:
       consumes:
       - application/json

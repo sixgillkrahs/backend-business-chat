@@ -289,3 +289,40 @@ func (r *roleRepository) GetRolesPaging(ctx context.Context, search string, offs
 
 	return roles, nil
 }
+
+func (r *roleRepository) CountUsersByRoleId(ctx context.Context, roleId int) (int64, error) {
+	query := `SELECT COUNT(*) FROM auths WHERE role_id = $1 AND is_deleted = false`
+	var count int64
+	err := r.db.Pool.QueryRow(ctx, query, roleId).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count users with role: %w", err)
+	}
+	return count, nil
+}
+
+func (r *roleRepository) DeleteRoleById(ctx context.Context, id int) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	deleteRolePermsQuery := `DELETE FROM role_permissions WHERE role_id = $1`
+	if _, err := tx.Exec(ctx, deleteRolePermsQuery, id); err != nil {
+		return fmt.Errorf("failed to delete associated role_permissions: %w", err)
+	}
+
+	deleteRoleQuery := `DELETE FROM roles WHERE id = $1`
+	tag, err := tx.Exec(ctx, deleteRoleQuery, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete role: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrRoleNotFound
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit role deletion transaction: %w", err)
+	}
+	return nil
+}

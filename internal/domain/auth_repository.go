@@ -45,4 +45,6 @@ type RoleRepository interface {
 	GetRoleById(ctx context.Context, id int) (*Role, error)
 	ValidatePermissionIDs(ctx context.Context, permissionIDs []int) (bool, error)
 	UpdateWithPermissions(ctx context.Context, role *Role, permissionIDs []int) error
+	DeleteRoleById(ctx context.Context, id int) error
+	CountUsersByRoleId(ctx context.Context, roleId int) (int64, error)
 }

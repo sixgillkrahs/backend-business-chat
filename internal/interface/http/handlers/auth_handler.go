@@ -569,3 +569,41 @@ func (h *AuthHandler) UpdateRoleById(c *gin.Context) {
 
 	utils.Success(c, role)
 }
+
+
+// DeleteRoleById godoc
+// @Summary      Xóa role theo ID
+// @Description  Xóa một vai trò (role) khỏi hệ thống theo ID (không thể xóa vai trò hệ thống hoặc vai trò đang được gán cho người dùng)
+// @Tags         auth
+// @Produce      json
+// @Param        id   path      int  true  "ID của role cần xóa"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      409  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/roles/{id} [delete]
+func (h *AuthHandler) DeleteRoleById(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		utils.Error(c, http.StatusBadRequest, "ID không hợp lệ")
+		return
+	}
+
+	lang := utils.GetLanguageFromContext(c)
+	if err := h.AuthService.DeleteRoleById(c.Request.Context(), id, lang); err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrRoleNotFound:           http.StatusNotFound,
+			domain.ErrSystemRoleCannotDelete: http.StatusForbidden,
+			domain.ErrRoleInUse:              http.StatusConflict,
+		})
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"message": utils.Translate(c, "Xóa vai trò thành công"),
+	})
+}

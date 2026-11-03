@@ -14,4 +14,6 @@ var (
 	ErrRoleNotFound            = errors.New("vai trò không tồn tại trong hệ thống")
 	ErrEmptyRolePermissions    = errors.New("vai trò phải chứa ít nhất một permission")
 	ErrSystemRoleProtected     = errors.New("không thể chỉnh sửa vai trò hệ thống")
+	ErrSystemRoleCannotDelete  = errors.New("không thể xóa vai trò mặc định của hệ thống")
+	ErrRoleInUse               = errors.New("không thể xóa vai trò đang được gán cho người dùng")
 )

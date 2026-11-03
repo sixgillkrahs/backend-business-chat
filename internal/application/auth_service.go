@@ -583,3 +583,31 @@ func (s *AuthService) UpdateRoleById(ctx context.Context, id int, req dto.Update
 
 	return s.roleRepo.GetRoleById(ctx, id)
 }
+
+func (s *AuthService) DeleteRoleById(ctx context.Context, id int, lang string) error {
+	if id <= 0 {
+		return domain.ErrRoleNotFound
+	}
+
+	role, err := s.roleRepo.GetRoleById(ctx, id)
+	if err != nil {
+		return err
+	}
+	if role == nil {
+		return domain.ErrRoleNotFound
+	}
+
+	if role.IsSystem {
+		return domain.ErrSystemRoleCannotDelete
+	}
+
+	userCount, err := s.roleRepo.CountUsersByRoleId(ctx, id)
+	if err != nil {
+		return err
+	}
+	if userCount > 0 {
+		return domain.ErrRoleInUse
+	}
+
+	return s.roleRepo.DeleteRoleById(ctx, id)
+}
