@@ -104,6 +104,39 @@ func (r *permissionRepository) UpdateWithPolicies(ctx context.Context, permissio
 	return nil
 }
 
+func (r *permissionRepository) DeletePermissionById(ctx context.Context, id int) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Clean up junction tables explicitly for defense-in-depth
+	deleteRolePermsQuery := `DELETE FROM role_permissions WHERE permission_id = $1`
+	if _, err := tx.Exec(ctx, deleteRolePermsQuery, id); err != nil {
+		return fmt.Errorf("failed to delete associated role_permissions: %w", err)
+	}
+
+	deletePermPoliciesQuery := `DELETE FROM permission_policies WHERE permission_id = $1`
+	if _, err := tx.Exec(ctx, deletePermPoliciesQuery, id); err != nil {
+		return fmt.Errorf("failed to delete associated permission_policies: %w", err)
+	}
+
+	deletePermQuery := `DELETE FROM permission WHERE id = $1`
+	tag, err := tx.Exec(ctx, deletePermQuery, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete permission: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrPermissionNotFound
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit permission deletion transaction: %w", err)
+	}
+	return nil
+}
+
 func (r *permissionRepository) GetPermissionByName(ctx context.Context, name string) (*domain.Permission, error) {
 	query := `SELECT id, name, COALESCE(description, ''), created_at, updated_at FROM permission WHERE name = $1`
 	var p domain.Permission

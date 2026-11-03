@@ -411,3 +411,36 @@ func (h *AuthHandler) UpdatePermissionById(c *gin.Context) {
 
 	utils.Success(c, perm)
 }
+
+// DeletePermissionById godoc
+// @Summary      Xóa permission theo ID
+// @Description  Xóa một permission và các liên kết policies khỏi hệ thống theo ID
+// @Tags         auth
+// @Produce      json
+// @Param        id   path      int  true  "ID của permission"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/permissions/{id} [delete]
+func (h *AuthHandler) DeletePermissionById(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		utils.Error(c, http.StatusBadRequest, "ID không hợp lệ")
+		return
+	}
+
+	lang := utils.GetLanguageFromContext(c)
+	if err := h.AuthService.DeletePermissionById(c.Request.Context(), id, lang); err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrPermissionNotFound: http.StatusNotFound,
+		})
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"message": utils.Translate(c, utils.KeyDeletedSuccess),
+	})
+}

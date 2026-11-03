@@ -330,6 +330,46 @@ paths:
       tags:
       - auth
   /auth/permissions/{id}:
+    delete:
+      description: Xóa một permission và các liên kết policies khỏi hệ thống theo
+        ID
+      parameters:
+      - description: ID của permission
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Xóa permission theo ID
+      tags:
+      - auth
     get:
       description: Lấy thông tin chi tiết của một permission kèm danh sách policies
         theo ID

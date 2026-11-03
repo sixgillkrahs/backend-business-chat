@@ -48,3 +48,6 @@ Content-Type: application/json
   "description": "Cập nhật mô tả quyền quản trị",
   "policy_ids": [1]
 }
+
+### 10. Delete Permission by ID
+DELETE {{baseUrl}}/v1/api/auth/permissions/1 HTTP/1.1

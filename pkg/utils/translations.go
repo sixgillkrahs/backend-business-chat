@@ -6,6 +6,7 @@ import "sync"
 const (
 	KeySuccess             = "msg.success"
 	KeyCreatedSuccess      = "msg.created_success"
+	KeyDeletedSuccess      = "msg.deleted_success"
 	KeyValidationFailed    = "msg.validation_failed"
 	KeyInternalServerError = "msg.internal_server_error"
 
@@ -24,6 +25,7 @@ var (
 		"vi": {
 			KeySuccess:             "Thành công",
 			KeyCreatedSuccess:      "Tạo thành công",
+			KeyDeletedSuccess:      "Xóa thành công",
 			KeyValidationFailed:    "Dữ liệu không hợp lệ",
 			KeyInternalServerError: "Lỗi hệ thống nội bộ",
 
@@ -38,6 +40,7 @@ var (
 			"Success":               "Thành công",
 			"Created successfully":  "Tạo thành công",
 			"Tạo thành công":        "Tạo thành công",
+			"Xóa thành công":        "Xóa thành công",
 			"Validation failed":     "Dữ liệu không hợp lệ",
 			"Internal server error": "Lỗi hệ thống nội bộ",
 			"Lỗi hệ thống nội bộ":   "Lỗi hệ thống nội bộ",
@@ -57,6 +60,7 @@ var (
 		"en": {
 			KeySuccess:             "Success",
 			KeyCreatedSuccess:      "Created successfully",
+			KeyDeletedSuccess:      "Deleted successfully",
 			KeyValidationFailed:    "Validation failed",
 			KeyInternalServerError: "Internal server error",
 
@@ -71,6 +75,7 @@ var (
 			"Success":               "Success",
 			"Created successfully":  "Created successfully",
 			"Tạo thành công":        "Created successfully",
+			"Xóa thành công":        "Deleted successfully",
 			"Validation failed":     "Validation failed",
 			"Internal server error": "Internal server error",
 			"Lỗi hệ thống nội bộ":   "Internal server error",

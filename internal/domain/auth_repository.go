@@ -34,4 +34,5 @@ type PermissionRepository interface {
 	GetPermissionById(ctx context.Context, id int) (*Permission, error)
 	ValidatePolicyIDs(ctx context.Context, policyIDs []int) (bool, error)
 	UpdateWithPolicies(ctx context.Context, permission *Permission, policyIDs []int) error
+	DeletePermissionById(ctx context.Context, id int) error
 }

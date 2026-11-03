@@ -360,3 +360,21 @@ func (s *AuthService) UpdatePermissionById(ctx context.Context, id int, req dto.
 
 	return s.permissionRepo.GetPermissionById(ctx, id)
 }
+
+// DeletePermissionById deletes a permission by its ID and its associated policy mappings.
+// Complies with OWASP A01 (Broken Access Control / IDOR defense) and A04 (Insecure Design).
+func (s *AuthService) DeletePermissionById(ctx context.Context, id int, lang string) error {
+	if id <= 0 {
+		return domain.ErrPermissionNotFound
+	}
+
+	perm, err := s.permissionRepo.GetPermissionById(ctx, id)
+	if err != nil {
+		return err
+	}
+	if perm == nil {
+		return domain.ErrPermissionNotFound
+	}
+
+	return s.permissionRepo.DeletePermissionById(ctx, id)
+}
