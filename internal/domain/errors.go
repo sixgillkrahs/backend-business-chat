@@ -25,4 +25,12 @@ var (
 	ErrCannotDeleteSelf           = errors.New("không thể tự xóa tài khoản của chính mình")
 	ErrRoleLocked                 = errors.New("vai trò của người dùng đã bị vô hiệu hóa")
 	ErrInvalidRefreshToken        = errors.New("refresh token không hợp lệ hoặc đã hết hạn")
+	ErrOAuthStateInvalid          = errors.New("mã xác thực state không hợp lệ hoặc đã hết hạn")
+	ErrOAuthCodeExchangeFailed    = errors.New("xác thực mã ủy quyền với github thất bại")
+	ErrOAuthEmailNotFound         = errors.New("không tìm thấy địa chỉ email đã xác thực từ tài khoản github")
+	ErrOAuthUserNotFound          = errors.New("không thể lấy thông tin người dùng từ github")
+	ErrOAuthAccountAlreadyBound   = errors.New("tài khoản github này đã được liên kết với một người dùng khác")
+	ErrGitHubAccountNotLinked     = errors.New("tài khoản chưa liên kết với github hoặc chưa cấp quyền truy cập repository")
+	ErrGitHubTokenInvalid         = errors.New("token github không hợp lệ hoặc đã hết hạn")
 )
+

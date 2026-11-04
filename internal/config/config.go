@@ -4,6 +4,18 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Postgres PostgresConfig `mapstructure:"postgres"`
 	Redis    RedisConfig    `mapstructure:"redis"`
+	OAuth    OAuthConfig    `mapstructure:"oauth"`
+}
+
+type OAuthConfig struct {
+	GitHub GitHubOAuthConfig `mapstructure:"github"`
+}
+
+type GitHubOAuthConfig struct {
+	ClientID     string `mapstructure:"clientId"`
+	ClientSecret string `mapstructure:"clientSecret"`
+	RedirectURI  string `mapstructure:"redirectUri"`
+	Scopes       string `mapstructure:"scopes"`
 }
 
 type JWT struct {

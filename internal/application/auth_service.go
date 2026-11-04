@@ -3,14 +3,17 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sixgillkrahs/backend-business-chat/internal/application/dto"
 	"github.com/sixgillkrahs/backend-business-chat/internal/config"
 	"github.com/sixgillkrahs/backend-business-chat/internal/domain"
+	"github.com/sixgillkrahs/backend-business-chat/internal/infrastructure/oauth"
 	"github.com/sixgillkrahs/backend-business-chat/pkg/utils"
 )
 
@@ -23,6 +26,8 @@ type AuthService struct {
 	permissionRepo domain.PermissionRepository
 	roleRepo       domain.RoleRepository
 	userRepo       domain.UserRepository
+	oauthRepo      domain.OAuthRepository
+	gitHubClient   oauth.GitHubClient
 }
 
 func NewAuthService(
@@ -34,8 +39,9 @@ func NewAuthService(
 	permissionRepo domain.PermissionRepository,
 	roleRepo domain.RoleRepository,
 	userRepo domain.UserRepository,
+	extra ...interface{},
 ) *AuthService {
-	return &AuthService{
+	s := &AuthService{
 		config:         cfg,
 		actionRepo:     actionRepo,
 		authRepo:       authRepo,
@@ -45,6 +51,29 @@ func NewAuthService(
 		roleRepo:       roleRepo,
 		userRepo:       userRepo,
 	}
+
+	for _, opt := range extra {
+		switch v := opt.(type) {
+		case domain.OAuthRepository:
+			s.oauthRepo = v
+		case oauth.GitHubClient:
+			s.gitHubClient = v
+		}
+	}
+
+	if s.gitHubClient == nil && cfg != nil {
+		s.gitHubClient = oauth.NewGitHubClient(cfg.OAuth.GitHub)
+	}
+
+	return s
+}
+
+func (s *AuthService) SetOAuthRepo(repo domain.OAuthRepository) {
+	s.oauthRepo = repo
+}
+
+func (s *AuthService) SetGitHubClient(client oauth.GitHubClient) {
+	s.gitHubClient = client
 }
 
 func (s *AuthService) GetAllActions(ctx context.Context) ([]domain.Action, error) {
@@ -134,11 +163,10 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest, lang stri
 		return nil, domain.ErrUserLocked
 	}
 
-	var userResp *dto.UserLoginResponse
-	var permissions []domain.Permission
-
+	var user *domain.User
 	if s.userRepo != nil && auth.UserId > 0 {
-		user, err := s.userRepo.FindByID(ctx, auth.UserId)
+		var err error
+		user, err = s.userRepo.FindByID(ctx, auth.UserId)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +176,60 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest, lang stri
 		if !user.IsActive {
 			return nil, domain.ErrUserLocked
 		}
+	}
 
+	return s.generateLoginResponse(ctx, &auth, user, ip)
+}
+
+func (s *AuthService) RefreshToken(ctx context.Context, tokenStr string, lang string, ip string) (*dto.LoginResponse, error) {
+	tokenStr = strings.TrimSpace(tokenStr)
+	if tokenStr == "" {
+		return nil, domain.ErrInvalidRefreshToken
+	}
+
+	secretKey := "secret"
+	if s.config != nil && s.config.Server.Jwt.SecretKey != "" {
+		secretKey = s.config.Server.Jwt.SecretKey
+	}
+
+	claims, err := utils.ValidateRefreshToken(tokenStr, secretKey)
+	if err != nil {
+		return nil, domain.ErrInvalidRefreshToken
+	}
+
+	auth, err := s.authRepo.FindByUsername(ctx, claims.Username)
+	if err != nil {
+		return nil, domain.ErrInvalidRefreshToken
+	}
+
+	if !auth.IsActive || auth.IsDeleted {
+		return nil, domain.ErrUserLocked
+	}
+
+	var user *domain.User
+	if s.userRepo != nil && auth.UserId > 0 {
+		var err error
+		user, err = s.userRepo.FindByID(ctx, auth.UserId)
+		if err != nil {
+			return nil, err
+		}
+		if user == nil || user.IsDeleted {
+			return nil, domain.ErrInvalidRefreshToken
+		}
+		if !user.IsActive {
+			return nil, domain.ErrUserLocked
+		}
+	}
+
+	return s.generateLoginResponse(ctx, &auth, user, ip)
+}
+
+func (s *AuthService) generateLoginResponse(ctx context.Context, auth *domain.Auth, user *domain.User, ip string) (*dto.LoginResponse, error) {
+	var userResp *dto.UserLoginResponse
+	var permissions []domain.Permission
+	var roleResp *dto.RoleResponse
+
+	if user != nil {
 		userResp = &dto.UserLoginResponse{
 			ID:        user.ID,
 			Username:  user.Username,
@@ -158,8 +239,6 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest, lang stri
 		}
 	}
 
-	// Fetch and verify linked role & permissions
-	var roleResp *dto.RoleResponse
 	roleClaim := strconv.Itoa(auth.RoleId)
 
 	if s.roleRepo != nil && auth.RoleId > 0 {
@@ -211,108 +290,6 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest, lang stri
 	return &dto.LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    int64(duration.Seconds()),
-		User:         userResp,
-	}, nil
-}
-
-func (s *AuthService) RefreshToken(ctx context.Context, tokenStr string, lang string, ip string) (*dto.LoginResponse, error) {
-	tokenStr = strings.TrimSpace(tokenStr)
-	if tokenStr == "" {
-		return nil, domain.ErrInvalidRefreshToken
-	}
-
-	secretKey := "secret"
-	if s.config != nil && s.config.Server.Jwt.SecretKey != "" {
-		secretKey = s.config.Server.Jwt.SecretKey
-	}
-
-	claims, err := utils.ValidateRefreshToken(tokenStr, secretKey)
-	if err != nil {
-		return nil, domain.ErrInvalidRefreshToken
-	}
-
-	auth, err := s.authRepo.FindByUsername(ctx, claims.Username)
-	if err != nil {
-		return nil, domain.ErrInvalidRefreshToken
-	}
-
-	if !auth.IsActive || auth.IsDeleted {
-		return nil, domain.ErrUserLocked
-	}
-
-	var userResp *dto.UserLoginResponse
-	var permissions []domain.Permission
-
-	if s.userRepo != nil && auth.UserId > 0 {
-		user, err := s.userRepo.FindByID(ctx, auth.UserId)
-		if err != nil {
-			return nil, err
-		}
-		if user == nil || user.IsDeleted {
-			return nil, domain.ErrInvalidRefreshToken
-		}
-		if !user.IsActive {
-			return nil, domain.ErrUserLocked
-		}
-
-		userResp = &dto.UserLoginResponse{
-			ID:        user.ID,
-			Username:  user.Username,
-			Email:     user.Email,
-			FullName:  user.FullName,
-			AvatarURL: user.AvatarURL,
-		}
-	}
-
-	var roleResp *dto.RoleResponse
-	roleClaim := strconv.Itoa(auth.RoleId)
-
-	if s.roleRepo != nil && auth.RoleId > 0 {
-		role, err := s.roleRepo.GetRoleById(ctx, auth.RoleId)
-		if err != nil {
-			return nil, err
-		}
-		if role != nil {
-			if !role.IsActive {
-				return nil, domain.ErrRoleLocked
-			}
-			roleResp = &dto.RoleResponse{
-				ID:          role.ID,
-				Name:        role.Name,
-				Description: role.Description,
-				IsActive:    role.IsActive,
-				IsSystem:    role.IsSystem,
-			}
-			permissions = role.Permissions
-		}
-	}
-
-	if userResp != nil {
-		userResp.Role = roleResp
-		userResp.Permissions = permissions
-	}
-
-	duration := 15 * time.Minute
-	if s.config != nil && s.config.Server.Jwt.Duration > 0 {
-		duration = time.Duration(s.config.Server.Jwt.Duration) * time.Minute
-	}
-
-	newAccessToken, err := utils.GenerateAccessToken(int64(auth.UserId), auth.Username, roleClaim, ip, secretKey, duration)
-	if err != nil {
-		return nil, err
-	}
-
-	refreshDuration := 7 * 24 * time.Hour
-	newRefreshToken, err := utils.GenerateRefreshToken(int64(auth.UserId), auth.Username, roleClaim, ip, secretKey, refreshDuration)
-	if err != nil {
-		return nil, err
-	}
-
-	return &dto.LoginResponse{
-		AccessToken:  newAccessToken,
-		RefreshToken: newRefreshToken,
 		TokenType:    "Bearer",
 		ExpiresIn:    int64(duration.Seconds()),
 		User:         userResp,
@@ -1215,3 +1192,301 @@ func (s *AuthService) DeleteUserById(ctx context.Context, id int, lang string, d
 
 	return s.userRepo.Delete(ctx, id, deletedBy)
 }
+
+func (s *AuthService) GetGitHubAuthURL(ctx context.Context) (string, string, error) {
+	if s.gitHubClient == nil {
+		return "", "", errors.New("github oauth client is not initialized")
+	}
+
+	secretKey := "oauth-secret-key"
+	if s.config != nil && s.config.Server.Jwt.SecretKey != "" {
+		secretKey = s.config.Server.Jwt.SecretKey
+	}
+
+	state, err := utils.GenerateOAuthState(secretKey)
+	if err != nil {
+		return "", "", err
+	}
+
+	authURL := s.gitHubClient.GetAuthURL(state)
+	return authURL, state, nil
+}
+
+func (s *AuthService) LoginOrRegisterWithGitHub(ctx context.Context, code string, state string, lang string, ip string) (*dto.LoginResponse, error) {
+	code = strings.TrimSpace(code)
+	state = strings.TrimSpace(state)
+	if code == "" || state == "" {
+		return nil, domain.ErrOAuthStateInvalid
+	}
+
+	secretKey := "oauth-secret-key"
+	if s.config != nil && s.config.Server.Jwt.SecretKey != "" {
+		secretKey = s.config.Server.Jwt.SecretKey
+	}
+
+	if !utils.ValidateOAuthState(state, secretKey, 10*time.Minute) {
+		return nil, domain.ErrOAuthStateInvalid
+	}
+
+	if s.gitHubClient == nil {
+		return nil, errors.New("github oauth client is not initialized")
+	}
+	if s.oauthRepo == nil {
+		return nil, errors.New("oauth repository is not initialized")
+	}
+
+	ghToken, err := s.gitHubClient.ExchangeCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+
+	encryptedToken, err := utils.EncryptAESGCM(ghToken, secretKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt oauth access token: %w", err)
+	}
+
+	ghUser, err := s.gitHubClient.GetUserInfo(ctx, ghToken)
+	if err != nil {
+		return nil, err
+	}
+
+	email := strings.ToLower(strings.TrimSpace(ghUser.Email))
+	if email == "" {
+		return nil, domain.ErrOAuthEmailNotFound
+	}
+
+	ghIDStr := strconv.FormatInt(ghUser.ID, 10)
+
+	oauthAcc, err := s.oauthRepo.FindByProviderAndUserID(ctx, "github", ghIDStr)
+	if err != nil {
+		return nil, err
+	}
+
+	if oauthAcc != nil {
+		_ = s.oauthRepo.UpdateAccessToken(ctx, oauthAcc.ID, encryptedToken)
+
+		user, err := s.userRepo.FindByID(ctx, oauthAcc.UserID)
+		if err != nil {
+			return nil, err
+		}
+		if user == nil || user.IsDeleted || !user.IsActive {
+			return nil, domain.ErrUserLocked
+		}
+
+		auth, err := s.authRepo.FindByUsername(ctx, user.Username)
+		if err != nil {
+			return nil, err
+		}
+		if !auth.IsActive || auth.IsDeleted {
+			return nil, domain.ErrUserLocked
+		}
+
+		return s.generateLoginResponse(ctx, &auth, user, ip)
+	}
+
+	existingUser, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+
+	if existingUser != nil {
+		if !existingUser.IsActive || existingUser.IsDeleted {
+			return nil, domain.ErrUserLocked
+		}
+
+		newOAuthAcc := &domain.OAuthAccount{
+			UserID:         existingUser.ID,
+			Provider:       "github",
+			ProviderUserID: ghIDStr,
+			Email:          email,
+			AvatarURL:      strings.TrimSpace(ghUser.AvatarURL),
+			AccessToken:    encryptedToken,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		}
+		if err := s.oauthRepo.Create(ctx, newOAuthAcc); err != nil {
+			return nil, err
+		}
+
+		auth, err := s.authRepo.FindByUsername(ctx, existingUser.Username)
+		if err != nil {
+			return nil, err
+		}
+		if !auth.IsActive || auth.IsDeleted {
+			return nil, domain.ErrUserLocked
+		}
+
+		return s.generateLoginResponse(ctx, &auth, existingUser, ip)
+	}
+
+	role, err := s.getDefaultRole(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil || !role.IsActive {
+		return nil, domain.ErrRoleNotFound
+	}
+
+	uniqueUsername := s.generateUniqueUsername(ctx, ghUser.Login)
+
+	fullName := strings.TrimSpace(ghUser.Name)
+	if fullName == "" {
+		fullName = uniqueUsername
+	}
+	if len(fullName) > 100 {
+		fullName = fullName[:100]
+	}
+
+	dummyPassword := uuid.New().String() + "!Aa1"
+	passwordHash, err := utils.HashPassword(dummyPassword)
+	if err != nil {
+		return nil, err
+	}
+
+	newUser := &domain.User{
+		Username:  uniqueUsername,
+		Email:     email,
+		FullName:  fullName,
+		AvatarURL: strings.TrimSpace(ghUser.AvatarURL),
+		RoleID:    &role.ID,
+		IsActive:  true,
+		IsDeleted: false,
+		CreatedBy: "oauth_github",
+		UpdatedBy: "oauth_github",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := newUser.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := s.userRepo.CreateWithAuth(ctx, newUser, passwordHash); err != nil {
+		return nil, err
+	}
+
+	newOAuthAcc := &domain.OAuthAccount{
+		UserID:         newUser.ID,
+		Provider:       "github",
+		ProviderUserID: ghIDStr,
+		Email:          email,
+		AvatarURL:      strings.TrimSpace(ghUser.AvatarURL),
+		AccessToken:    encryptedToken,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+	if err := s.oauthRepo.Create(ctx, newOAuthAcc); err != nil {
+		return nil, err
+	}
+
+	auth, err := s.authRepo.FindByUsername(ctx, newUser.Username)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.generateLoginResponse(ctx, &auth, newUser, ip)
+}
+
+func (s *AuthService) generateUniqueUsername(ctx context.Context, baseLogin string) string {
+	baseLogin = strings.TrimSpace(baseLogin)
+	var validChars []rune
+	for _, r := range baseLogin {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '.' || r == '-' {
+			validChars = append(validChars, r)
+		}
+	}
+	cleaned := string(validChars)
+	if len(cleaned) < 3 {
+		cleaned = "user_" + cleaned
+	}
+	if len(cleaned) > 40 {
+		cleaned = cleaned[:40]
+	}
+
+	candidate := cleaned
+	existing, err := s.userRepo.FindByUsername(ctx, candidate)
+	if err == nil && existing == nil {
+		return candidate
+	}
+
+	for i := 1; i <= 100; i++ {
+		candidate = fmt.Sprintf("%s_%d", cleaned, i)
+		existing, err = s.userRepo.FindByUsername(ctx, candidate)
+		if err == nil && existing == nil {
+			return candidate
+		}
+	}
+
+	return fmt.Sprintf("u_%d", time.Now().Unix())
+}
+
+func (s *AuthService) GetGitHubRepositories(ctx context.Context, userID int) ([]*domain.GitHubRepository, error) {
+	if s.gitHubClient == nil || s.oauthRepo == nil {
+		return nil, errors.New("github client or oauth repository is not initialized")
+	}
+
+	accounts, err := s.oauthRepo.FindByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var ghAcc *domain.OAuthAccount
+	for _, acc := range accounts {
+		if acc.Provider == "github" {
+			ghAcc = &acc
+			break
+		}
+	}
+
+	if ghAcc == nil || ghAcc.AccessToken == "" {
+		return nil, domain.ErrGitHubAccountNotLinked
+	}
+
+	secretKey := "oauth-secret-key"
+	if s.config != nil && s.config.Server.Jwt.SecretKey != "" {
+		secretKey = s.config.Server.Jwt.SecretKey
+	}
+
+	decryptedToken, err := utils.DecryptAESGCM(ghAcc.AccessToken, secretKey)
+	if err != nil {
+		return nil, domain.ErrGitHubTokenInvalid
+	}
+
+	return s.gitHubClient.GetUserRepositories(ctx, decryptedToken)
+}
+
+func (s *AuthService) CreateGitHubIssue(ctx context.Context, userID int, owner, repo string, req domain.GitHubCreateIssueRequest) (*domain.GitHubIssueResponse, error) {
+	if s.gitHubClient == nil || s.oauthRepo == nil {
+		return nil, errors.New("github client or oauth repository is not initialized")
+	}
+
+	accounts, err := s.oauthRepo.FindByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var ghAcc *domain.OAuthAccount
+	for _, acc := range accounts {
+		if acc.Provider == "github" {
+			ghAcc = &acc
+			break
+		}
+	}
+
+	if ghAcc == nil || ghAcc.AccessToken == "" {
+		return nil, domain.ErrGitHubAccountNotLinked
+	}
+
+	secretKey := "oauth-secret-key"
+	if s.config != nil && s.config.Server.Jwt.SecretKey != "" {
+		secretKey = s.config.Server.Jwt.SecretKey
+	}
+
+	decryptedToken, err := utils.DecryptAESGCM(ghAcc.AccessToken, secretKey)
+	if err != nil {
+		return nil, domain.ErrGitHubTokenInvalid
+	}
+
+	return s.gitHubClient.CreateIssue(ctx, decryptedToken, owner, repo, req)
+}
+

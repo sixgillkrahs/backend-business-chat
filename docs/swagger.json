@@ -124,6 +124,338 @@
                 }
             }
         },
+        "/auth/oauth/github": {
+            "post": {
+                "description": "Nhận mã ủy quyền (code) và state từ GitHub hoặc client SPA, xác thực chống tấn công CSRF, đồng thời tự động tạo tài khoản hoặc liên kết tài khoản và trả về cặp JWT tokens (Access Token 15m \u0026 Refresh Token 7d)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Xác thực callback GitHub OAuth2 (Đăng nhập / Tạo tài khoản)",
+                "parameters": [
+                    {
+                        "description": "Mã ủy quyền code và state (dạng JSON)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GitHubOAuthCallbackRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Mã ủy quyền code (nếu redirect qua query params)",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Mã CSRF state (nếu redirect qua query params)",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Thông tin phiên đăng nhập và token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oauth/github/callback": {
+            "get": {
+                "description": "Nhận mã ủy quyền (code) và state từ GitHub hoặc client SPA, xác thực chống tấn công CSRF, đồng thời tự động tạo tài khoản hoặc liên kết tài khoản và trả về cặp JWT tokens (Access Token 15m \u0026 Refresh Token 7d)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Xác thực callback GitHub OAuth2 (Đăng nhập / Tạo tài khoản)",
+                "parameters": [
+                    {
+                        "description": "Mã ủy quyền code và state (dạng JSON)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GitHubOAuthCallbackRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Mã ủy quyền code (nếu redirect qua query params)",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Mã CSRF state (nếu redirect qua query params)",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Thông tin phiên đăng nhập và token",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oauth/github/repos": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sử dụng GitHub OAuth access token được mã hóa an toàn của người dùng trong hệ thống để truy xuất danh sách repository",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Lấy danh sách repositories của người dùng từ GitHub",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/domain.GitHubRepository"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oauth/github/repos/{owner}/{repo}/issues": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sử dụng GitHub OAuth access token được mã hóa của người dùng để tạo issue mới trên repository chỉ định",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Tạo issue mới trên GitHub repository của người dùng",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Chủ sở hữu repository (username hoặc org)",
+                        "name": "owner",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Tên repository",
+                        "name": "repo",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Thông tin issue cần tạo",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.GitHubCreateIssueRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.GitHubIssueResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oauth/github/url": {
+            "get": {
+                "description": "Khởi tạo luồng xác thực OAuth2 với GitHub, tạo mã CSRF state ngẫu nhiên có chữ ký số (HMAC) theo chuẩn OWASP và trả về URL để client chuyển hướng đến GitHub",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Lấy URL ủy quyền GitHub OAuth2",
+                "responses": {
+                    "200": {
+                        "description": "URL ủy quyền và mã state chống CSRF",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GitHubAuthURLResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/auth/permissions": {
             "get": {
                 "security": [
@@ -1775,6 +2107,78 @@
                 }
             }
         },
+        "domain.GitHubCreateIssueRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "assignees": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "body": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.GitHubIssueResponse": {
+            "type": "object",
+            "properties": {
+                "html_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.GitHubRepository": {
+            "type": "object",
+            "properties": {
+                "default_branch": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "html_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "private": {
+                    "type": "boolean"
+                }
+            }
+        },
         "domain.Permission": {
             "type": "object",
             "properties": {
@@ -2043,6 +2447,32 @@
                     "type": "string",
                     "maxLength": 50,
                     "minLength": 3
+                }
+            }
+        },
+        "dto.GitHubAuthURLResponse": {
+            "type": "object",
+            "properties": {
+                "state": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.GitHubOAuthCallbackRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "state"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
                 }
             }
         },

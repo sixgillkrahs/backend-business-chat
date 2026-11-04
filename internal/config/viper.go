@@ -59,6 +59,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("redis.addr", "localhost:6379")
 	v.SetDefault("redis.password", "")
 	v.SetDefault("redis.db", 0)
+	v.SetDefault("oauth.github.clientId", "")
+	v.SetDefault("oauth.github.clientSecret", "")
+	v.SetDefault("oauth.github.redirectUri", "http://localhost:8000/v1/api/auth/oauth/github/callback")
+	v.SetDefault("oauth.github.scopes", "user:email read:user repo")
 }
 
 func bindEnvs(v *viper.Viper, iface interface{}, parts ...string) {

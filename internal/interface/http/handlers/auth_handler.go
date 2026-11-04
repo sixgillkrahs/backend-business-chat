@@ -172,6 +172,189 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	utils.Success(c, resp)
 }
 
+// GetGitHubAuthURL godoc
+// @Summary      Lấy URL ủy quyền GitHub OAuth2
+// @Description  Khởi tạo luồng xác thực OAuth2 với GitHub, tạo mã CSRF state ngẫu nhiên có chữ ký số (HMAC) theo chuẩn OWASP và trả về URL để client chuyển hướng đến GitHub
+// @Tags         auth
+// @Produce      json
+// @Success      200  {object}  dto.GitHubAuthURLResponse  "URL ủy quyền và mã state chống CSRF"
+// @Failure      500  {object}  map[string]string
+// @Router       /auth/oauth/github/url [get]
+func (h *AuthHandler) GetGitHubAuthURL(c *gin.Context) {
+	authURL, state, err := h.AuthService.GetGitHubAuthURL(c.Request.Context())
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.Success(c, dto.GitHubAuthURLResponse{
+		URL:   authURL,
+		State: state,
+	})
+}
+
+// GitHubOAuthCallback godoc
+// @Summary      Xác thực callback GitHub OAuth2 (Đăng nhập / Tạo tài khoản)
+// @Description  Nhận mã ủy quyền (code) và state từ GitHub hoặc client SPA, xác thực chống tấn công CSRF, đồng thời tự động tạo tài khoản hoặc liên kết tài khoản và trả về cặp JWT tokens (Access Token 15m & Refresh Token 7d)
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dto.GitHubOAuthCallbackRequest  false  "Mã ủy quyền code và state (dạng JSON)"
+// @Param        code  query     string                          false  "Mã ủy quyền code (nếu redirect qua query params)"
+// @Param        state query     string                          false  "Mã CSRF state (nếu redirect qua query params)"
+// @Success      200   {object}  dto.LoginResponse               "Thông tin phiên đăng nhập và token"
+// @Failure      400   {object}  map[string]string
+// @Failure      401   {object}  map[string]string
+// @Failure      403   {object}  map[string]string
+// @Failure      500   {object}  map[string]string
+// @Router       /auth/oauth/github [post]
+// @Router       /auth/oauth/github/callback [get]
+func (h *AuthHandler) GitHubOAuthCallback(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	ip := c.ClientIP()
+
+	var req dto.GitHubOAuthCallbackRequest
+	_ = c.ShouldBindJSON(&req)
+
+	if req.Code == "" {
+		req.Code = strings.TrimSpace(c.Query("code"))
+	}
+	if req.State == "" {
+		req.State = strings.TrimSpace(c.Query("state"))
+	}
+
+	if req.Code == "" || req.State == "" {
+		utils.Error(c, http.StatusBadRequest, utils.Translate(c, "Mã xác thực state không hợp lệ hoặc đã hết hạn"))
+		return
+	}
+
+	resp, err := h.AuthService.LoginOrRegisterWithGitHub(c.Request.Context(), req.Code, req.State, lang, ip)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrOAuthStateInvalid:        http.StatusBadRequest,
+			domain.ErrOAuthCodeExchangeFailed:  http.StatusBadRequest,
+			domain.ErrOAuthEmailNotFound:       http.StatusBadRequest,
+			domain.ErrOAuthUserNotFound:        http.StatusBadRequest,
+			domain.ErrOAuthAccountAlreadyBound: http.StatusConflict,
+			domain.ErrUserLocked:               http.StatusForbidden,
+			domain.ErrRoleLocked:               http.StatusForbidden,
+			domain.ErrRoleNotFound:             http.StatusInternalServerError,
+		})
+		return
+	}
+
+	secure := false
+	if h.AuthService.GetConfig() != nil && h.AuthService.GetConfig().Server.Env == "production" {
+		secure = true
+	}
+	c.SetSameSite(http.SameSiteLaxMode)
+	maxAge := int(resp.ExpiresIn)
+	if maxAge <= 0 {
+		maxAge = 900
+	}
+	c.SetCookie("access_token", resp.AccessToken, maxAge, "/", "", secure, true)
+	if resp.RefreshToken != "" {
+		c.SetCookie("refresh_token", resp.RefreshToken, 7*24*3600, "/v1/api/auth", "", secure, true)
+	}
+
+	utils.Success(c, resp)
+}
+
+// GetGitHubRepositories godoc
+// @Summary      Lấy danh sách repositories của người dùng từ GitHub
+// @Description  Sử dụng GitHub OAuth access token được mã hóa an toàn của người dùng trong hệ thống để truy xuất danh sách repository
+// @Tags         auth
+// @Produce      json
+// @Success      200  {object}  utils.Response{data=[]domain.GitHubRepository}
+// @Failure      400  {object}  utils.Response
+// @Failure      401  {object}  utils.Response
+// @Failure      500  {object}  utils.Response
+// @Security     BearerAuth
+// @Router       /auth/oauth/github/repos [get]
+func (h *AuthHandler) GetGitHubRepositories(c *gin.Context) {
+	val, exists := c.Get("userID")
+	if !exists {
+		utils.Error(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	userID, ok := val.(int)
+	if !ok || userID <= 0 {
+		utils.Error(c, http.StatusUnauthorized, "Invalid user ID")
+		return
+	}
+
+	repos, err := h.AuthService.GetGitHubRepositories(c.Request.Context(), userID)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrGitHubAccountNotLinked: http.StatusBadRequest,
+			domain.ErrGitHubTokenInvalid:     http.StatusUnauthorized,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.Response{
+		Code:    http.StatusOK,
+		Message: utils.Translate(c, "Lấy danh sách repository thành công"),
+		Data:    repos,
+	})
+}
+
+// CreateGitHubIssue godoc
+// @Summary      Tạo issue mới trên GitHub repository của người dùng
+// @Description  Sử dụng GitHub OAuth access token được mã hóa của người dùng để tạo issue mới trên repository chỉ định
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        owner    path      string                           true  "Chủ sở hữu repository (username hoặc org)"
+// @Param        repo     path      string                           true  "Tên repository"
+// @Param        request  body      domain.GitHubCreateIssueRequest  true  "Thông tin issue cần tạo"
+// @Success      201      {object}  utils.Response{data=domain.GitHubIssueResponse}
+// @Failure      400      {object}  utils.Response
+// @Failure      401      {object}  utils.Response
+// @Failure      500      {object}  utils.Response
+// @Security     BearerAuth
+// @Router       /auth/oauth/github/repos/{owner}/{repo}/issues [post]
+func (h *AuthHandler) CreateGitHubIssue(c *gin.Context) {
+	val, exists := c.Get("userID")
+	if !exists {
+		utils.Error(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	userID, ok := val.(int)
+	if !ok || userID <= 0 {
+		utils.Error(c, http.StatusUnauthorized, "Invalid user ID")
+		return
+	}
+
+	owner := strings.TrimSpace(c.Param("owner"))
+	repo := strings.TrimSpace(c.Param("repo"))
+	if owner == "" || repo == "" {
+		utils.Error(c, http.StatusBadRequest, "Owner and repo are required")
+		return
+	}
+
+	var req domain.GitHubCreateIssueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	issue, err := h.AuthService.CreateGitHubIssue(c.Request.Context(), userID, owner, repo, req)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrGitHubAccountNotLinked: http.StatusBadRequest,
+			domain.ErrGitHubTokenInvalid:     http.StatusUnauthorized,
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, utils.Response{
+		Code:    http.StatusCreated,
+		Message: utils.Translate(c, "Tạo issue trên GitHub thành công"),
+		Data:    issue,
+	})
+}
+
 // ListActions godoc
 // @Summary      Danh sách actions
 // @Description  Lấy toàn bộ danh sách actions trong hệ thống

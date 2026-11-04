@@ -33,9 +33,36 @@ Content-Type: application/json
   "refresh_token": "YOUR_REFRESH_TOKEN_HERE"
 }
 
+### 2.2 Get GitHub OAuth Authorization URL
+GET {{baseUrl}}/v1/api/auth/oauth/github/url HTTP/1.1
 
+### 2.3 Exchange GitHub OAuth Code (POST JSON)
+POST {{baseUrl}}/v1/api/auth/oauth/github HTTP/1.1
+Content-Type: application/json
 
-### 3. Get All Auth Actions
+{
+  "code": "GITHUB_TEMPORARY_CODE",
+  "state": "HMAC_SIGNED_STATE_FROM_URL_ENDPOINT"
+}
+
+### 2.4 GitHub OAuth Callback (GET Web redirect flow)
+GET {{baseUrl}}/v1/api/auth/oauth/github/callback?code=GITHUB_TEMPORARY_CODE&state=HMAC_SIGNED_STATE_FROM_URL_ENDPOINT HTTP/1.1
+
+### 2.5 Get User's GitHub Repositories (Authenticated)
+GET {{baseUrl}}/v1/api/auth/oauth/github/repos HTTP/1.1
+Authorization: Bearer YOUR_SYSTEM_JWT_ACCESS_TOKEN_HERE
+
+### 2.6 Create Issue on GitHub Repository (Authenticated)
+POST {{baseUrl}}/v1/api/auth/oauth/github/repos/OWNER_NAME/REPO_NAME/issues HTTP/1.1
+Authorization: Bearer YOUR_SYSTEM_JWT_ACCESS_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "title": "Bug found from business chat",
+  "body": "Detailed issue description submitted via backend OAuth integration",
+  "labels": ["bug"]
+}
+
 GET {{baseUrl}}/v1/api/auth/actions HTTP/1.1
 
 ### 4. Get All Resources

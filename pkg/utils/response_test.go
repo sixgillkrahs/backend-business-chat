@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sixgillkrahs/backend-business-chat/internal/interface/http/middleware"
 )
 
 func createTestContext(lang string) (*gin.Context, *httptest.ResponseRecorder) {
@@ -17,7 +16,7 @@ func createTestContext(lang string) (*gin.Context, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	req, _ := http.NewRequest("GET", "/", nil)
-	ctx := context.WithValue(req.Context(), middleware.LanguageKey, lang)
+	ctx := context.WithValue(req.Context(), LanguageKey, lang)
 	c.Request = req.WithContext(ctx)
 	return c, w
 }

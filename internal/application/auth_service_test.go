@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/sixgillkrahs/backend-business-chat/internal/application/dto"
 	"github.com/sixgillkrahs/backend-business-chat/internal/config"
 	"github.com/sixgillkrahs/backend-business-chat/internal/domain"
+	"github.com/sixgillkrahs/backend-business-chat/internal/infrastructure/oauth"
 	"github.com/sixgillkrahs/backend-business-chat/pkg/utils"
 )
 
@@ -168,6 +170,95 @@ func (m *mockAuthRepo) FindByUsername(ctx context.Context, username string) (dom
 		}
 	}
 	return domain.Auth{}, domain.ErrUserNotFound
+}
+
+type mockOAuthRepo struct {
+	accounts []*domain.OAuthAccount
+}
+
+func (m *mockOAuthRepo) FindByProviderAndUserID(ctx context.Context, provider, providerUserID string) (*domain.OAuthAccount, error) {
+	for _, a := range m.accounts {
+		if a.Provider == provider && a.ProviderUserID == providerUserID {
+			return a, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockOAuthRepo) Create(ctx context.Context, account *domain.OAuthAccount) error {
+	account.ID = len(m.accounts) + 1
+	m.accounts = append(m.accounts, account)
+	return nil
+}
+
+func (m *mockOAuthRepo) UpdateAccessToken(ctx context.Context, id int, encryptedToken string) error {
+	for _, a := range m.accounts {
+		if a.ID == id {
+			a.AccessToken = encryptedToken
+			return nil
+		}
+	}
+	return nil
+}
+
+func (m *mockOAuthRepo) FindByUserID(ctx context.Context, userID int) ([]domain.OAuthAccount, error) {
+	var result []domain.OAuthAccount
+	for _, a := range m.accounts {
+		if a.UserID == userID {
+			result = append(result, *a)
+		}
+	}
+	return result, nil
+}
+
+type mockGitHubClient struct {
+	authURL   string
+	tokenErr  error
+	token     string
+	userInfo  *oauth.GitHubUserInfo
+	userErr   error
+	repos     []*domain.GitHubRepository
+	reposErr  error
+	issueResp *domain.GitHubIssueResponse
+	issueErr  error
+}
+
+func (m *mockGitHubClient) GetAuthURL(state string) string {
+	if m.authURL != "" {
+		return m.authURL + "?state=" + state
+	}
+	return "https://github.com/login/oauth/authorize?state=" + state
+}
+
+func (m *mockGitHubClient) ExchangeCode(ctx context.Context, code string) (string, error) {
+	if m.tokenErr != nil {
+		return "", m.tokenErr
+	}
+	if m.token != "" {
+		return m.token, nil
+	}
+	return "mock-access-token", nil
+}
+
+func (m *mockGitHubClient) GetUserInfo(ctx context.Context, accessToken string) (*oauth.GitHubUserInfo, error) {
+	if m.userErr != nil {
+		return nil, m.userErr
+	}
+	return m.userInfo, nil
+}
+
+func (m *mockGitHubClient) GetUserRepositories(ctx context.Context, accessToken string) ([]*domain.GitHubRepository, error) {
+	if m.reposErr != nil {
+		return nil, m.reposErr
+	}
+	return m.repos, nil
+}
+
+func (m *mockGitHubClient) CreateIssue(ctx context.Context, accessToken string, owner, repo string, req domain.GitHubCreateIssueRequest) (*domain.GitHubIssueResponse, error) {
+	if m.issueErr != nil {
+		return nil, m.issueErr
+	}
+	return m.issueResp, nil
 }
 
 func setupService(roleRepo domain.RoleRepository, userRepo domain.UserRepository) *application.AuthService {
@@ -1207,4 +1298,363 @@ func TestRegister_NoDefaultRole(t *testing.T) {
 		t.Fatalf("expected ErrRoleNotFound when no active roles exist, got: %v", err)
 	}
 }
+
+func TestGetGitHubAuthURL(t *testing.T) {
+	service := setupFullService(&mockAuthRepo{}, &mockRoleRepo{}, &mockUserRepo{})
+	ghMock := &mockGitHubClient{authURL: "https://github.com/login/oauth/authorize"}
+	service.SetGitHubClient(ghMock)
+
+	url, state, err := service.GetGitHubAuthURL(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error, got: %v", err)
+	}
+	if url == "" || state == "" {
+		t.Fatalf("expected non-empty url and state")
+	}
+	if !strings.Contains(url, "https://github.com/login/oauth/authorize") {
+		t.Errorf("expected url to contain authorize endpoint")
+	}
+	if !utils.ValidateOAuthState(state, "supersecretkeyforunittestingjwttoken", 5*time.Minute) {
+		t.Errorf("expected valid hmac signed state")
+	}
+}
+
+func TestLoginOrRegisterWithGitHub_InvalidState(t *testing.T) {
+	service := setupFullService(&mockAuthRepo{}, &mockRoleRepo{}, &mockUserRepo{})
+	service.SetGitHubClient(&mockGitHubClient{})
+	service.SetOAuthRepo(&mockOAuthRepo{})
+
+	_, err := service.LoginOrRegisterWithGitHub(context.Background(), "some-code", "invalid-state", "vi", "127.0.0.1")
+	if err != domain.ErrOAuthStateInvalid {
+		t.Fatalf("expected ErrOAuthStateInvalid, got: %v", err)
+	}
+}
+
+func TestLoginOrRegisterWithGitHub_ExchangeCodeError(t *testing.T) {
+	service := setupFullService(&mockAuthRepo{}, &mockRoleRepo{}, &mockUserRepo{})
+	state, _ := utils.GenerateOAuthState("supersecretkeyforunittestingjwttoken")
+
+	ghMock := &mockGitHubClient{
+		tokenErr: errors.New("exchange failed"),
+	}
+	service.SetGitHubClient(ghMock)
+	service.SetOAuthRepo(&mockOAuthRepo{})
+
+	_, err := service.LoginOrRegisterWithGitHub(context.Background(), "invalid-code", state, "vi", "127.0.0.1")
+	if err == nil {
+		t.Fatalf("expected error from exchange code failure")
+	}
+}
+
+func TestLoginOrRegisterWithGitHub_NoVerifiedEmail(t *testing.T) {
+	service := setupFullService(&mockAuthRepo{}, &mockRoleRepo{}, &mockUserRepo{})
+	state, _ := utils.GenerateOAuthState("supersecretkeyforunittestingjwttoken")
+
+	ghMock := &mockGitHubClient{
+		userInfo: &oauth.GitHubUserInfo{
+			ID:    999,
+			Login: "noemailuser",
+			Email: "", // No verified email
+		},
+	}
+	service.SetGitHubClient(ghMock)
+	service.SetOAuthRepo(&mockOAuthRepo{})
+
+	_, err := service.LoginOrRegisterWithGitHub(context.Background(), "valid-code", state, "vi", "127.0.0.1")
+	if err != domain.ErrOAuthEmailNotFound {
+		t.Fatalf("expected ErrOAuthEmailNotFound, got: %v", err)
+	}
+}
+
+func TestLoginOrRegisterWithGitHub_NewUserRegistration(t *testing.T) {
+	roleRepo := &mockRoleRepo{
+		roles: map[int]*domain.Role{
+			2: {ID: 2, Name: "User", IsActive: true},
+		},
+	}
+	userRepo := &mockUserRepo{
+		usersByID:       make(map[int]*domain.User),
+		usersByUsername: make(map[string]*domain.User),
+		usersByEmail:    make(map[string]*domain.User),
+	}
+	authRepo := &mockAuthRepo{
+		auths: make(map[string]*domain.Auth),
+	}
+	oauthRepo := &mockOAuthRepo{}
+
+	service := setupFullService(authRepo, roleRepo, userRepo)
+	state, _ := utils.GenerateOAuthState("supersecretkeyforunittestingjwttoken")
+
+	ghMock := &mockGitHubClient{
+		userInfo: &oauth.GitHubUserInfo{
+			ID:        123456,
+			Login:     "octocat",
+			Name:      "The Octocat",
+			Email:     "octocat@github.com",
+			AvatarURL: "https://github.com/images/octocat.png",
+		},
+	}
+	service.SetGitHubClient(ghMock)
+	service.SetOAuthRepo(oauthRepo)
+
+	// Since mockUserRepo.CreateWithAuth sets user.ID = 100, we mock authRepo accordingly
+	// We'll pre-populate authRepo when CreateWithAuth is called or simulate auth entry:
+	authRepo.auths["octocat"] = &domain.Auth{
+		UserId:   100,
+		Username: "octocat",
+		RoleId:   2,
+		IsActive: true,
+	}
+
+	resp, err := service.LoginOrRegisterWithGitHub(context.Background(), "code123", state, "vi", "127.0.0.1")
+	if err != nil {
+		t.Fatalf("expected nil error on registration, got: %v", err)
+	}
+
+	if resp == nil || resp.AccessToken == "" {
+		t.Fatalf("expected non-empty access token")
+	}
+	if resp.RefreshToken == "" {
+		t.Fatalf("expected non-empty refresh token")
+	}
+	if len(oauthRepo.accounts) != 1 {
+		t.Errorf("expected 1 oauth account created, got: %d", len(oauthRepo.accounts))
+	}
+	if oauthRepo.accounts[0].Provider != "github" || oauthRepo.accounts[0].ProviderUserID != "123456" {
+		t.Errorf("unexpected oauth account data: %+v", oauthRepo.accounts[0])
+	}
+}
+
+func TestLoginOrRegisterWithGitHub_ExistingOAuthAccount(t *testing.T) {
+	existingUser := &domain.User{
+		ID:        10,
+		Username:  "githubber",
+		Email:     "githubber@example.com",
+		FullName:  "GitHub User",
+		IsActive:  true,
+		IsDeleted: false,
+	}
+	existingAuth := &domain.Auth{
+		UserId:   10,
+		Username: "githubber",
+		RoleId:   2,
+		IsActive: true,
+	}
+	existingRole := &domain.Role{
+		ID:       2,
+		Name:     "User",
+		IsActive: true,
+	}
+
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{2: existingRole}}
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{10: existingUser}}
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{"githubber": existingAuth}}
+	oauthRepo := &mockOAuthRepo{
+		accounts: []*domain.OAuthAccount{
+			{
+				ID:             1,
+				UserID:         10,
+				Provider:       "github",
+				ProviderUserID: "88888",
+				Email:          "githubber@example.com",
+			},
+		},
+	}
+
+	service := setupFullService(authRepo, roleRepo, userRepo)
+	state, _ := utils.GenerateOAuthState("supersecretkeyforunittestingjwttoken")
+
+	ghMock := &mockGitHubClient{
+		userInfo: &oauth.GitHubUserInfo{
+			ID:    88888,
+			Login: "githubber",
+			Email: "githubber@example.com",
+		},
+	}
+	service.SetGitHubClient(ghMock)
+	service.SetOAuthRepo(oauthRepo)
+
+	resp, err := service.LoginOrRegisterWithGitHub(context.Background(), "code123", state, "vi", "127.0.0.1")
+	if err != nil {
+		t.Fatalf("expected nil error on existing oauth account login, got: %v", err)
+	}
+	if resp == nil || resp.AccessToken == "" {
+		t.Fatalf("expected non-empty access token")
+	}
+	if resp.User == nil || resp.User.ID != 10 {
+		t.Errorf("expected user ID 10, got: %v", resp.User)
+	}
+}
+
+func TestLoginOrRegisterWithGitHub_LinkExistingEmail(t *testing.T) {
+	existingUser := &domain.User{
+		ID:        15,
+		Username:  "localuser",
+		Email:     "shared@example.com",
+		FullName:  "Local User",
+		IsActive:  true,
+		IsDeleted: false,
+	}
+	existingAuth := &domain.Auth{
+		UserId:   15,
+		Username: "localuser",
+		RoleId:   2,
+		IsActive: true,
+	}
+	role := &domain.Role{ID: 2, Name: "User", IsActive: true}
+
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{2: role}}
+	userRepo := &mockUserRepo{
+		usersByID:    map[int]*domain.User{15: existingUser},
+		usersByEmail: map[string]*domain.User{"shared@example.com": existingUser},
+	}
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{"localuser": existingAuth}}
+	oauthRepo := &mockOAuthRepo{accounts: []*domain.OAuthAccount{}}
+
+	service := setupFullService(authRepo, roleRepo, userRepo)
+	state, _ := utils.GenerateOAuthState("supersecretkeyforunittestingjwttoken")
+
+	ghMock := &mockGitHubClient{
+		userInfo: &oauth.GitHubUserInfo{
+			ID:    77777,
+			Login: "ghuser",
+			Email: "shared@example.com",
+		},
+	}
+	service.SetGitHubClient(ghMock)
+	service.SetOAuthRepo(oauthRepo)
+
+	resp, err := service.LoginOrRegisterWithGitHub(context.Background(), "code123", state, "vi", "127.0.0.1")
+	if err != nil {
+		t.Fatalf("expected nil error on link existing email, got: %v", err)
+	}
+	if resp == nil || resp.User.ID != 15 {
+		t.Errorf("expected linked user ID 15, got: %v", resp.User)
+	}
+	if len(oauthRepo.accounts) != 1 {
+		t.Errorf("expected 1 oauth account created for linking, got: %d", len(oauthRepo.accounts))
+	}
+	if oauthRepo.accounts[0].UserID != 15 {
+		t.Errorf("expected oauth account linked to user 15, got: %d", oauthRepo.accounts[0].UserID)
+	}
+	if oauthRepo.accounts[0].AccessToken == "" {
+		t.Errorf("expected encrypted access token to be saved")
+	}
+	decrypted, err := utils.DecryptAESGCM(oauthRepo.accounts[0].AccessToken, "supersecretkeyforunittestingjwttoken")
+	if err != nil || decrypted != "mock-access-token" {
+		t.Errorf("expected decrypted token 'mock-access-token', got: %s (err: %v)", decrypted, err)
+	}
+}
+
+func TestGetGitHubRepositories_Success(t *testing.T) {
+	service := setupFullService(&mockAuthRepo{}, &mockRoleRepo{}, &mockUserRepo{})
+	encryptedToken, _ := utils.EncryptAESGCM("valid-token", "supersecretkeyforunittestingjwttoken")
+
+	oauthRepo := &mockOAuthRepo{
+		accounts: []*domain.OAuthAccount{
+			{
+				ID:             1,
+				UserID:         10,
+				Provider:       "github",
+				ProviderUserID: "12345",
+				AccessToken:    encryptedToken,
+			},
+		},
+	}
+
+	ghMock := &mockGitHubClient{
+		repos: []*domain.GitHubRepository{
+			{
+				ID:       101,
+				Name:     "backend-business-chat",
+				FullName: "test/backend-business-chat",
+				Private:  true,
+			},
+		},
+	}
+
+	service.SetOAuthRepo(oauthRepo)
+	service.SetGitHubClient(ghMock)
+
+	repos, err := service.GetGitHubRepositories(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("expected nil error, got: %v", err)
+	}
+	if len(repos) != 1 || repos[0].Name != "backend-business-chat" {
+		t.Fatalf("unexpected repos returned: %v", repos)
+	}
+}
+
+func TestGetGitHubRepositories_NotLinked(t *testing.T) {
+	service := setupFullService(&mockAuthRepo{}, &mockRoleRepo{}, &mockUserRepo{})
+	oauthRepo := &mockOAuthRepo{accounts: []*domain.OAuthAccount{}}
+	ghMock := &mockGitHubClient{}
+
+	service.SetOAuthRepo(oauthRepo)
+	service.SetGitHubClient(ghMock)
+
+	_, err := service.GetGitHubRepositories(context.Background(), 99)
+	if !errors.Is(err, domain.ErrGitHubAccountNotLinked) {
+		t.Fatalf("expected ErrGitHubAccountNotLinked, got: %v", err)
+	}
+}
+
+func TestCreateGitHubIssue_Success(t *testing.T) {
+	service := setupFullService(&mockAuthRepo{}, &mockRoleRepo{}, &mockUserRepo{})
+	encryptedToken, _ := utils.EncryptAESGCM("valid-token", "supersecretkeyforunittestingjwttoken")
+
+	oauthRepo := &mockOAuthRepo{
+		accounts: []*domain.OAuthAccount{
+			{
+				ID:             1,
+				UserID:         10,
+				Provider:       "github",
+				ProviderUserID: "12345",
+				AccessToken:    encryptedToken,
+			},
+		},
+	}
+
+	ghMock := &mockGitHubClient{
+		issueResp: &domain.GitHubIssueResponse{
+			ID:     999,
+			Number: 42,
+			Title:  "Bug: login issue",
+			State:  "open",
+		},
+	}
+
+	service.SetOAuthRepo(oauthRepo)
+	service.SetGitHubClient(ghMock)
+
+	req := domain.GitHubCreateIssueRequest{
+		Title: "Bug: login issue",
+		Body:  "Detailed bug description",
+	}
+
+	issue, err := service.CreateGitHubIssue(context.Background(), 10, "owner", "repo", req)
+	if err != nil {
+		t.Fatalf("expected nil error, got: %v", err)
+	}
+	if issue == nil || issue.Number != 42 {
+		t.Fatalf("unexpected issue returned: %v", issue)
+	}
+}
+
+func TestCreateGitHubIssue_NotLinked(t *testing.T) {
+	service := setupFullService(&mockAuthRepo{}, &mockRoleRepo{}, &mockUserRepo{})
+	oauthRepo := &mockOAuthRepo{accounts: []*domain.OAuthAccount{}}
+	ghMock := &mockGitHubClient{}
+
+	service.SetOAuthRepo(oauthRepo)
+	service.SetGitHubClient(ghMock)
+
+	req := domain.GitHubCreateIssueRequest{Title: "Issue"}
+	_, err := service.CreateGitHubIssue(context.Background(), 99, "owner", "repo", req)
+	if !errors.Is(err, domain.ErrGitHubAccountNotLinked) {
+		t.Fatalf("expected ErrGitHubAccountNotLinked, got: %v", err)
+	}
+}
+
+
 

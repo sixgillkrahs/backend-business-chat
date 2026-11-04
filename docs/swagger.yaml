@@ -44,6 +44,53 @@ definitions:
       username:
         type: string
     type: object
+  domain.GitHubCreateIssueRequest:
+    properties:
+      assignees:
+        items:
+          type: string
+        type: array
+      body:
+        type: string
+      labels:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    required:
+    - title
+    type: object
+  domain.GitHubIssueResponse:
+    properties:
+      html_url:
+        type: string
+      id:
+        type: integer
+      number:
+        type: integer
+      state:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.GitHubRepository:
+    properties:
+      default_branch:
+        type: string
+      description:
+        type: string
+      full_name:
+        type: string
+      html_url:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      private:
+        type: boolean
+    type: object
   domain.Permission:
     properties:
       created_at:
@@ -229,6 +276,23 @@ definitions:
     - password
     - role_id
     - username
+    type: object
+  dto.GitHubAuthURLResponse:
+    properties:
+      state:
+        type: string
+      url:
+        type: string
+    type: object
+  dto.GitHubOAuthCallbackRequest:
+    properties:
+      code:
+        type: string
+      state:
+        type: string
+    required:
+    - code
+    - state
     type: object
   dto.LoginRequest:
     properties:
@@ -568,6 +632,224 @@ paths:
               type: string
             type: object
       summary: Đăng nhập hệ thống
+      tags:
+      - auth
+  /auth/oauth/github:
+    post:
+      consumes:
+      - application/json
+      description: Nhận mã ủy quyền (code) và state từ GitHub hoặc client SPA, xác
+        thực chống tấn công CSRF, đồng thời tự động tạo tài khoản hoặc liên kết tài
+        khoản và trả về cặp JWT tokens (Access Token 15m & Refresh Token 7d)
+      parameters:
+      - description: Mã ủy quyền code và state (dạng JSON)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/dto.GitHubOAuthCallbackRequest'
+      - description: Mã ủy quyền code (nếu redirect qua query params)
+        in: query
+        name: code
+        type: string
+      - description: Mã CSRF state (nếu redirect qua query params)
+        in: query
+        name: state
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Thông tin phiên đăng nhập và token
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Xác thực callback GitHub OAuth2 (Đăng nhập / Tạo tài khoản)
+      tags:
+      - auth
+  /auth/oauth/github/callback:
+    get:
+      consumes:
+      - application/json
+      description: Nhận mã ủy quyền (code) và state từ GitHub hoặc client SPA, xác
+        thực chống tấn công CSRF, đồng thời tự động tạo tài khoản hoặc liên kết tài
+        khoản và trả về cặp JWT tokens (Access Token 15m & Refresh Token 7d)
+      parameters:
+      - description: Mã ủy quyền code và state (dạng JSON)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/dto.GitHubOAuthCallbackRequest'
+      - description: Mã ủy quyền code (nếu redirect qua query params)
+        in: query
+        name: code
+        type: string
+      - description: Mã CSRF state (nếu redirect qua query params)
+        in: query
+        name: state
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Thông tin phiên đăng nhập và token
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Xác thực callback GitHub OAuth2 (Đăng nhập / Tạo tài khoản)
+      tags:
+      - auth
+  /auth/oauth/github/repos:
+    get:
+      description: Sử dụng GitHub OAuth access token được mã hóa an toàn của người
+        dùng trong hệ thống để truy xuất danh sách repository
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.GitHubRepository'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Lấy danh sách repositories của người dùng từ GitHub
+      tags:
+      - auth
+  /auth/oauth/github/repos/{owner}/{repo}/issues:
+    post:
+      consumes:
+      - application/json
+      description: Sử dụng GitHub OAuth access token được mã hóa của người dùng để
+        tạo issue mới trên repository chỉ định
+      parameters:
+      - description: Chủ sở hữu repository (username hoặc org)
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Tên repository
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: Thông tin issue cần tạo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.GitHubCreateIssueRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.GitHubIssueResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Tạo issue mới trên GitHub repository của người dùng
+      tags:
+      - auth
+  /auth/oauth/github/url:
+    get:
+      description: Khởi tạo luồng xác thực OAuth2 với GitHub, tạo mã CSRF state ngẫu
+        nhiên có chữ ký số (HMAC) theo chuẩn OWASP và trả về URL để client chuyển
+        hướng đến GitHub
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: URL ủy quyền và mã state chống CSRF
+          schema:
+            $ref: '#/definitions/dto.GitHubAuthURLResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Lấy URL ủy quyền GitHub OAuth2
       tags:
       - auth
   /auth/permissions:

@@ -3,6 +3,7 @@ package routes
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/sixgillkrahs/backend-business-chat/internal/interface/http/handlers"
+	"github.com/sixgillkrahs/backend-business-chat/internal/interface/http/middleware"
 )
 
 func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
@@ -12,6 +13,20 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 		api.POST("/register", authHandler.Register)
 		api.POST("/login", authHandler.Login)
 		api.POST("/refresh-token", authHandler.RefreshToken)
+		api.GET("/oauth/github/url", authHandler.GetGitHubAuthURL)
+		api.POST("/oauth/github", authHandler.GitHubOAuthCallback)
+		api.GET("/oauth/github/callback", authHandler.GitHubOAuthCallback)
+
+		// GitHub Repository & Issue operations (Authenticated)
+		secretKey := "secret"
+		if authHandler.AuthService.GetConfig() != nil && authHandler.AuthService.GetConfig().Server.Jwt.SecretKey != "" {
+			secretKey = authHandler.AuthService.GetConfig().Server.Jwt.SecretKey
+		}
+		authProtected := api.Group("", middleware.AuthMiddleware(secretKey))
+		{
+			authProtected.GET("/oauth/github/repos", authHandler.GetGitHubRepositories)
+			authProtected.POST("/oauth/github/repos/:owner/:repo/issues", authHandler.CreateGitHubIssue)
+		}
 
 		api.GET("/actions", authHandler.ListActions)
 		api.GET("/resources", authHandler.ListResources)
