@@ -604,6 +604,87 @@ func (h *AuthHandler) DeleteRoleById(c *gin.Context) {
 	})
 }
 
+// UpdateRoleStatus godoc
+// @Summary      Chuyển trạng thái role theo ID
+// @Description  Chuyển đổi (toggle) hoặc cập nhật trạng thái hoạt động (active/inactive) của một vai trò (role) theo ID
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int                          true   "ID của role"
+// @Param        request  body      dto.UpdateRoleStatusRequest  false  "Trạng thái mới (nếu không truyền is_active, hệ thống sẽ tự động đảo ngược trạng thái hiện tại)"
+// @Success      200      {object}  domain.Role
+// @Failure      400      {object}  map[string]string
+// @Failure      403      {object}  map[string]string
+// @Failure      404      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/roles/{id}/status [patch]
+func (h *AuthHandler) UpdateRoleStatus(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		utils.Error(c, http.StatusBadRequest, "ID không hợp lệ")
+		return
+	}
+
+	var req dto.UpdateRoleStatusRequest
+	if c.Request.Body != nil && c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			utils.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	lang := utils.GetLanguageFromContext(c)
+	role, err := h.AuthService.UpdateRoleStatus(c.Request.Context(), id, req, lang)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrRoleNotFound:               http.StatusNotFound,
+			domain.ErrSystemRoleProtected:        http.StatusForbidden,
+			domain.ErrSystemRoleCannotDeactivate: http.StatusForbidden,
+		})
+		return
+	}
+
+	utils.Success(c, role)
+}
+
+// DeactivateRoleById godoc
+// @Summary      Hủy kích hoạt role theo ID
+// @Description  Hủy kích hoạt một vai trò (role) trong hệ thống theo ID (không thể hủy kích hoạt vai trò hệ thống)
+// @Tags         auth
+// @Produce      json
+// @Param        id   path      int  true  "ID của role cần hủy kích hoạt"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/roles/{id}/deactivate [patch]
+func (h *AuthHandler) DeactivateRoleById(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		utils.Error(c, http.StatusBadRequest, "ID không hợp lệ")
+		return
+	}
+
+	lang := utils.GetLanguageFromContext(c)
+	if err := h.AuthService.DeactivateRoleById(c.Request.Context(), id, lang); err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrRoleNotFound:               http.StatusNotFound,
+			domain.ErrSystemRoleProtected:        http.StatusForbidden,
+			domain.ErrSystemRoleCannotDeactivate: http.StatusForbidden,
+		})
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"message": utils.Translate(c, "Hủy kích hoạt vai trò thành công"),
+	})
+}
+
 // ListUsers godoc
 // @Summary      Danh sách users (phân trang limit & offset)
 // @Description  Lấy danh sách người dùng kèm vai trò (role), hỗ trợ tìm kiếm và phân trang bằng limit & offset
@@ -775,4 +856,45 @@ func (h *AuthHandler) UpdateUserById(c *gin.Context) {
 	}
 
 	utils.Success(c, user)
+}
+
+// DeleteUserById godoc
+// @Summary      Xóa người dùng theo ID
+// @Description  Xóa mềm (soft delete) tài khoản người dùng theo ID theo chuẩn OWASP (không cho phép xóa tài khoản quản trị hệ thống hoặc tự xóa tài khoản của chính mình)
+// @Tags         auth
+// @Produce      json
+// @Param        id   path      int  true  "ID của người dùng cần xóa"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /auth/users/{id} [delete]
+func (h *AuthHandler) DeleteUserById(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		utils.Error(c, http.StatusBadRequest, "ID người dùng không hợp lệ")
+		return
+	}
+
+	deletedBy := c.GetString("username")
+	if deletedBy == "" {
+		deletedBy = "system"
+	}
+
+	lang := utils.GetLanguageFromContext(c)
+	if err := h.AuthService.DeleteUserById(c.Request.Context(), id, lang, deletedBy); err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrUserNotFound:           http.StatusNotFound,
+			domain.ErrSystemUserCannotDelete: http.StatusForbidden,
+			domain.ErrCannotDeleteSelf:       http.StatusForbidden,
+		})
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"message": utils.Translate(c, "Xóa người dùng thành công"),
+	})
 }

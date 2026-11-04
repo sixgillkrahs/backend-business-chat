@@ -32,6 +32,8 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 		api.GET("/roles", authHandler.ListRoles)
 		api.POST("/roles", authHandler.CreateRole)
 		api.PUT("/roles/:id", authHandler.UpdateRoleById)
+		api.PATCH("/roles/:id/status", authHandler.UpdateRoleStatus)
+		api.PATCH("/roles/:id/deactivate", authHandler.DeactivateRoleById)
 		api.DELETE("/roles/:id", authHandler.DeleteRoleById)
 
 		// users
@@ -39,5 +41,6 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 		api.POST("/users", authHandler.CreateUser)
 		api.GET("/users/:id", authHandler.GetUserById)
 		api.PUT("/users/:id", authHandler.UpdateUserById)
+		api.DELETE("/users/:id", authHandler.DeleteUserById)
 	}
 }

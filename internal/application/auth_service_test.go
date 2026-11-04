@@ -44,6 +44,16 @@ func (m *mockRoleRepo) DeleteRoleById(ctx context.Context, id int) error { retur
 func (m *mockRoleRepo) CountUsersByRoleId(ctx context.Context, roleId int) (int64, error) {
 	return 0, nil
 }
+func (m *mockRoleRepo) UpdateRoleStatus(ctx context.Context, id int, isActive bool) error {
+	if r, ok := m.roles[id]; ok {
+		r.IsActive = isActive
+		return nil
+	}
+	return domain.ErrRoleNotFound
+}
+func (m *mockRoleRepo) DeactivateRoleById(ctx context.Context, id int) error {
+	return m.UpdateRoleStatus(ctx, id, false)
+}
 
 // Mock User Repository
 type mockUserRepo struct {
@@ -94,7 +104,16 @@ func (m *mockUserRepo) Update(ctx context.Context, user *domain.User) error {
 	}
 	return nil
 }
-func (m *mockUserRepo) Delete(ctx context.Context, id int) error { return nil }
+
+func (m *mockUserRepo) Delete(ctx context.Context, id int, deletedBy string) error {
+	if m.usersByID != nil {
+		if u, ok := m.usersByID[id]; ok {
+			u.SoftDelete(deletedBy)
+			return nil
+		}
+	}
+	return domain.ErrUserNotFound
+}
 func (m *mockUserRepo) GetUsersPaging(ctx context.Context, search string, offset, limit int) ([]domain.User, error) {
 	m.lastLimit = limit
 	m.lastOffset = offset
@@ -536,5 +555,187 @@ func TestUpdateUserById_RoleNotFound(t *testing.T) {
 	_, err := service.UpdateUserById(context.Background(), 1, req, "vi", "admin")
 	if err != domain.ErrRoleNotFound {
 		t.Fatalf("expected ErrRoleNotFound, got %v", err)
+	}
+}
+
+func TestDeactivateRoleById_Success(t *testing.T) {
+	role := &domain.Role{ID: 10, Name: "Tester", IsActive: true, IsSystem: false}
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{10: role}}
+	service := setupService(roleRepo, &mockUserRepo{})
+
+	err := service.DeactivateRoleById(context.Background(), 10, "vi")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if role.IsActive != false {
+		t.Errorf("expected role.IsActive to be false, got true")
+	}
+}
+
+func TestDeactivateRoleById_SystemRole(t *testing.T) {
+	systemRole := &domain.Role{ID: 1, Name: "Admin", IsActive: true, IsSystem: true}
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{1: systemRole}}
+	service := setupService(roleRepo, &mockUserRepo{})
+
+	err := service.DeactivateRoleById(context.Background(), 1, "vi")
+	if err != domain.ErrSystemRoleCannotDeactivate {
+		t.Fatalf("expected ErrSystemRoleCannotDeactivate, got %v", err)
+	}
+
+	if systemRole.IsActive != true {
+		t.Errorf("expected systemRole.IsActive to remain true")
+	}
+}
+
+func TestDeactivateRoleById_NotFound(t *testing.T) {
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{}}
+	service := setupService(roleRepo, &mockUserRepo{})
+
+	err := service.DeactivateRoleById(context.Background(), 999, "vi")
+	if err != domain.ErrRoleNotFound {
+		t.Fatalf("expected ErrRoleNotFound, got %v", err)
+	}
+}
+
+func TestDeactivateRoleById_InvalidID(t *testing.T) {
+	service := setupService(&mockRoleRepo{}, &mockUserRepo{})
+
+	err := service.DeactivateRoleById(context.Background(), 0, "vi")
+	if err != domain.ErrRoleNotFound {
+		t.Fatalf("expected ErrRoleNotFound for id <= 0, got %v", err)
+	}
+}
+
+func TestUpdateRoleStatus_Toggle(t *testing.T) {
+	role := &domain.Role{ID: 20, Name: "Moderator", IsActive: true, IsSystem: false}
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{20: role}}
+	service := setupService(roleRepo, &mockUserRepo{})
+
+	// 1st toggle: true -> false (no is_active specified)
+	updated, err := service.UpdateRoleStatus(context.Background(), 20, dto.UpdateRoleStatusRequest{}, "vi")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if updated.IsActive != false {
+		t.Errorf("expected role.IsActive to be false after toggle, got %v", updated.IsActive)
+	}
+
+	// 2nd toggle: false -> true
+	updated, err = service.UpdateRoleStatus(context.Background(), 20, dto.UpdateRoleStatusRequest{}, "vi")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if updated.IsActive != true {
+		t.Errorf("expected role.IsActive to be true after toggle, got %v", updated.IsActive)
+	}
+}
+
+func TestUpdateRoleStatus_ExplicitValue(t *testing.T) {
+	role := &domain.Role{ID: 21, Name: "Editor", IsActive: true, IsSystem: false}
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{21: role}}
+	service := setupService(roleRepo, &mockUserRepo{})
+
+	isActiveFalse := false
+	updated, err := service.UpdateRoleStatus(context.Background(), 21, dto.UpdateRoleStatusRequest{IsActive: &isActiveFalse}, "vi")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if updated.IsActive != false {
+		t.Errorf("expected role.IsActive to be false, got %v", updated.IsActive)
+	}
+
+	isActiveTrue := true
+	updated, err = service.UpdateRoleStatus(context.Background(), 21, dto.UpdateRoleStatusRequest{IsActive: &isActiveTrue}, "vi")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if updated.IsActive != true {
+		t.Errorf("expected role.IsActive to be true, got %v", updated.IsActive)
+	}
+}
+
+func TestUpdateRoleStatus_SystemRole(t *testing.T) {
+	systemRole := &domain.Role{ID: 1, Name: "Admin", IsActive: true, IsSystem: true}
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{1: systemRole}}
+	service := setupService(roleRepo, &mockUserRepo{})
+
+	_, err := service.UpdateRoleStatus(context.Background(), 1, dto.UpdateRoleStatusRequest{}, "vi")
+	if err != domain.ErrSystemRoleProtected {
+		t.Fatalf("expected ErrSystemRoleProtected for system role, got %v", err)
+	}
+}
+
+func TestDeleteUserById_Success(t *testing.T) {
+	user := &domain.User{ID: 5, Username: "regular_user", Email: "regular@example.com"}
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{5: user}}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	err := service.DeleteUserById(context.Background(), 5, "vi", "admin_actor")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if !user.IsDeleted {
+		t.Errorf("expected user.IsDeleted to be true")
+	}
+	if user.DeletedBy == nil || *user.DeletedBy != "admin_actor" {
+		t.Errorf("expected DeletedBy to be 'admin_actor', got %v", user.DeletedBy)
+	}
+}
+
+func TestDeleteUserById_NotFound(t *testing.T) {
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{}}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	err := service.DeleteUserById(context.Background(), 999, "vi", "admin_actor")
+	if err != domain.ErrUserNotFound {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestDeleteUserById_SystemUser_Admin(t *testing.T) {
+	adminUser := &domain.User{ID: 1, Username: "admin", Email: "admin@example.com"}
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{1: adminUser}}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	err := service.DeleteUserById(context.Background(), 1, "vi", "other_admin")
+	if err != domain.ErrSystemUserCannotDelete {
+		t.Fatalf("expected ErrSystemUserCannotDelete, got %v", err)
+	}
+}
+
+func TestDeleteUserById_SystemUser_Role(t *testing.T) {
+	systemUser := &domain.User{
+		ID:       2,
+		Username: "supermod",
+		Role:     &domain.Role{ID: 1, Name: "SuperAdmin", IsSystem: true},
+	}
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{2: systemUser}}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	err := service.DeleteUserById(context.Background(), 2, "vi", "other_admin")
+	if err != domain.ErrSystemUserCannotDelete {
+		t.Fatalf("expected ErrSystemUserCannotDelete, got %v", err)
+	}
+}
+
+func TestDeleteUserById_CannotDeleteSelf(t *testing.T) {
+	user := &domain.User{ID: 10, Username: "operator", Email: "operator@example.com"}
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{10: user}}
+	service := setupService(&mockRoleRepo{}, userRepo)
+
+	err := service.DeleteUserById(context.Background(), 10, "vi", "operator")
+	if err != domain.ErrCannotDeleteSelf {
+		t.Fatalf("expected ErrCannotDeleteSelf, got %v", err)
+	}
+}
+
+func TestDeleteUserById_InvalidID(t *testing.T) {
+	service := setupService(&mockRoleRepo{}, &mockUserRepo{})
+
+	err := service.DeleteUserById(context.Background(), 0, "vi", "admin")
+	if err != domain.ErrUserNotFound {
+		t.Fatalf("expected ErrUserNotFound for id <= 0, got %v", err)
 	}
 }

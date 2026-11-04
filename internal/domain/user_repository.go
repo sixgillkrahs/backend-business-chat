@@ -9,7 +9,7 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByUsername(ctx context.Context, username string) (*User, error)
 	Update(ctx context.Context, user *User) error
-	Delete(ctx context.Context, id int) error
+	Delete(ctx context.Context, id int, deletedBy string) error
 	GetUsersPaging(ctx context.Context, search string, offset, limit int) ([]User, error)
 	Count(ctx context.Context, search string) (int64, error)
 }

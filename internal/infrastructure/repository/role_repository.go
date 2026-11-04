@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/sixgillkrahs/backend-business-chat/internal/domain"
@@ -325,4 +326,20 @@ func (r *roleRepository) DeleteRoleById(ctx context.Context, id int) error {
 		return fmt.Errorf("failed to commit role deletion transaction: %w", err)
 	}
 	return nil
+}
+
+func (r *roleRepository) UpdateRoleStatus(ctx context.Context, id int, isActive bool) error {
+	query := `UPDATE roles SET isactive = $1, updated_at = $2 WHERE id = $3`
+	tag, err := r.db.Pool.Exec(ctx, query, isActive, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("failed to update role status: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrRoleNotFound
+	}
+	return nil
+}
+
+func (r *roleRepository) DeactivateRoleById(ctx context.Context, id int) error {
+	return r.UpdateRoleStatus(ctx, id, false)
 }

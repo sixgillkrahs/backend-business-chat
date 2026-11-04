@@ -281,14 +281,40 @@ func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
 	return nil
 }
 
-func (r *userRepository) Delete(ctx context.Context, id int) error {
-	query := `
+func (r *userRepository) Delete(ctx context.Context, id int, deletedBy string) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	now := time.Now()
+	userQuery := `
 		UPDATE users
-		SET is_deleted = true, deleted_at = NOW()
-		WHERE id = $1
+		SET is_deleted = true, deleted_by = $1, deleted_at = $2, updated_by = $1, updated_at = $2
+		WHERE id = $3 AND is_deleted = false
 	`
-	_, err := r.db.Pool.Exec(ctx, query, id)
-	return err
+	cmdTag, err := tx.Exec(ctx, userQuery, deletedBy, now, id)
+	if err != nil {
+		return fmt.Errorf("failed to soft delete user: %w", err)
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return domain.ErrUserNotFound
+	}
+
+	authQuery := `
+		UPDATE auths
+		SET is_deleted = true, deleted_by = $1, deleted_at = $2, is_active = false, updated_by = $1, updated_at = $2
+		WHERE user_id = $3 AND is_deleted = false
+	`
+	if _, err := tx.Exec(ctx, authQuery, deletedBy, now, id); err != nil {
+		return fmt.Errorf("failed to soft delete auth credentials: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
 }
 
 func (r *userRepository) Count(ctx context.Context, search string) (int64, error) {

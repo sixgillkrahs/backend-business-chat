@@ -343,6 +343,11 @@ definitions:
           type: integer
         type: array
     type: object
+  dto.UpdateRoleStatusRequest:
+    properties:
+      is_active:
+        type: boolean
+    type: object
   dto.UpdateUserRequest:
     properties:
       address:
@@ -1086,6 +1091,108 @@ paths:
       summary: Cập nhật role theo ID
       tags:
       - auth
+  /auth/roles/{id}/deactivate:
+    patch:
+      description: Hủy kích hoạt một vai trò (role) trong hệ thống theo ID (không
+        thể hủy kích hoạt vai trò hệ thống)
+      parameters:
+      - description: ID của role cần hủy kích hoạt
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Hủy kích hoạt role theo ID
+      tags:
+      - auth
+  /auth/roles/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Chuyển đổi (toggle) hoặc cập nhật trạng thái hoạt động (active/inactive)
+        của một vai trò (role) theo ID
+      parameters:
+      - description: ID của role
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Trạng thái mới (nếu không truyền is_active, hệ thống sẽ tự động
+          đảo ngược trạng thái hiện tại)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/dto.UpdateRoleStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Role'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Chuyển trạng thái role theo ID
+      tags:
+      - auth
   /auth/users:
     get:
       description: Lấy danh sách người dùng kèm vai trò (role), hỗ trợ tìm kiếm và
@@ -1169,6 +1276,54 @@ paths:
       tags:
       - auth
   /auth/users/{id}:
+    delete:
+      description: Xóa mềm (soft delete) tài khoản người dùng theo ID theo chuẩn OWASP
+        (không cho phép xóa tài khoản quản trị hệ thống hoặc tự xóa tài khoản của
+        chính mình)
+      parameters:
+      - description: ID của người dùng cần xóa
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Xóa người dùng theo ID
+      tags:
+      - auth
     get:
       description: Lấy thông tin chi tiết người dùng kèm vai trò (role) theo ID
       parameters:

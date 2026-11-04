@@ -615,6 +615,44 @@ func (s *AuthService) DeleteRoleById(ctx context.Context, id int, lang string) e
 	return s.roleRepo.DeleteRoleById(ctx, id)
 }
 
+func (s *AuthService) UpdateRoleStatus(ctx context.Context, id int, req dto.UpdateRoleStatusRequest, lang string) (*domain.Role, error) {
+	if id <= 0 {
+		return nil, domain.ErrRoleNotFound
+	}
+
+	role, err := s.roleRepo.GetRoleById(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil {
+		return nil, domain.ErrRoleNotFound
+	}
+
+	if role.IsSystem {
+		return nil, domain.ErrSystemRoleProtected
+	}
+
+	targetStatus := !role.IsActive
+	if req.IsActive != nil {
+		targetStatus = *req.IsActive
+	}
+
+	if err := s.roleRepo.UpdateRoleStatus(ctx, id, targetStatus); err != nil {
+		return nil, err
+	}
+
+	return s.roleRepo.GetRoleById(ctx, id)
+}
+
+func (s *AuthService) DeactivateRoleById(ctx context.Context, id int, lang string) error {
+	isActive := false
+	_, err := s.UpdateRoleStatus(ctx, id, dto.UpdateRoleStatusRequest{IsActive: &isActive}, lang)
+	if errors.Is(err, domain.ErrSystemRoleProtected) {
+		return domain.ErrSystemRoleCannotDeactivate
+	}
+	return err
+}
+
 func (s *AuthService) CreateUser(ctx context.Context, req dto.CreateUserRequest, lang string, createdBy string) (*domain.User, error) {
 	username := strings.TrimSpace(req.Username)
 	email := strings.ToLower(strings.TrimSpace(req.Email))
@@ -850,4 +888,36 @@ func (s *AuthService) UpdateUserById(ctx context.Context, id int, req dto.Update
 
 	user.Role = role
 	return user, nil
+}
+
+func (s *AuthService) DeleteUserById(ctx context.Context, id int, lang string, deletedBy string) error {
+	if id <= 0 {
+		return domain.ErrUserNotFound
+	}
+
+	user, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return domain.ErrUserNotFound
+	}
+
+	// OWASP A01: Prevent deleting system administrators
+	if user.Username == "admin" || (user.Role != nil && user.Role.IsSystem) {
+		return domain.ErrSystemUserCannotDelete
+	}
+
+	// OWASP A01: Prevent deleting own account to avoid lockout
+	if deletedBy != "" && strings.EqualFold(user.Username, deletedBy) {
+		return domain.ErrCannotDeleteSelf
+	}
+
+	if deletedBy == "" {
+		deletedBy = "system"
+	} else if len(deletedBy) > 20 {
+		deletedBy = deletedBy[:20]
+	}
+
+	return s.userRepo.Delete(ctx, id, deletedBy)
 }

@@ -93,3 +93,17 @@ type Role struct {
 func (Role) TableName() string {
 	return "roles"
 }
+
+func (r *Role) SetStatus(isActive bool) {
+	r.IsActive = isActive
+	r.UpdatedAt = time.Now()
+}
+
+func (r *Role) ToggleStatus() {
+	r.IsActive = !r.IsActive
+	r.UpdatedAt = time.Now()
+}
+
+func (r *Role) Deactivate() {
+	r.SetStatus(false)
+}

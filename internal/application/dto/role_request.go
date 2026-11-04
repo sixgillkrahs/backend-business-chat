@@ -14,6 +14,10 @@ type UpdateRoleRequest struct {
 	PermissionIDs []int   `json:"permission_ids" binding:"omitempty,dive,gt=0"`
 }
 
+type UpdateRoleStatusRequest struct {
+	IsActive *bool `json:"is_active,omitempty"`
+}
+
 type RoleResponse struct {
 	ID            int    `json:"id"`
 	Name          string `json:"name"`
