@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/sixgillkrahs/backend-business-chat/internal/domain"
@@ -245,16 +246,24 @@ func NewAuthRepository(db *database.PostgresDB) domain.AuthRepository {
 }
 
 func (r *authRepository) FindByUsername(ctx context.Context, username string) (domain.Auth, error) {
-	authPtr, err := r.baseRepository.FindOneByField(ctx, "username", username)
+	query := `
+		SELECT id, user_id, username, password_hash, role_id, created_at, updated_at,
+		       COALESCE(created_by, ''), COALESCE(updated_by, ''), COALESCE(deleted_by, ''),
+		       COALESCE(deleted_at, 'epoch'::timestamp), is_active, is_deleted
+		FROM auths
+		WHERE username = $1 AND is_deleted = false
+	`
+	var a domain.Auth
+	err := r.db.Pool.QueryRow(ctx, query, username).Scan(
+		&a.ID, &a.UserId, &a.Username, &a.PasswordHash, &a.RoleId, &a.CreatedAt, &a.UpdatedAt,
+		&a.CreatedBy, &a.UpdatedBy, &a.DeletedBy, &a.DeletedAt, &a.IsActive, &a.IsDeleted,
+	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Auth{}, domain.ErrUserNotFound
 		}
-		return domain.Auth{}, err
-	}
-	if authPtr == nil {
-		return domain.Auth{}, domain.ErrUserNotFound
+		return domain.Auth{}, fmt.Errorf("failed to query auth by username: %w", err)
 	}
 
-	return *authPtr, nil
+	return a, nil
 }

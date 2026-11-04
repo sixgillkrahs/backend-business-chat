@@ -8,19 +8,21 @@ import (
 )
 
 type CustomClaims struct {
-	UserID   int64  `json:"user_id"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
-	Ip       string `json:"ip"`
+	UserID    int64  `json:"user_id"`
+	Username  string `json:"username"`
+	Role      string `json:"role"`
+	Ip        string `json:"ip"`
+	TokenType string `json:"token_type,omitempty"`
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(userID int64, username string, role string, ip string, secretKey string, duration time.Duration) (string, error) {
+func GenerateAccessToken(userID int64, username string, role string, ip string, secretKey string, duration time.Duration) (string, error) {
 	claims := CustomClaims{
-		UserID:   userID,
-		Username: username,
-		Role:     role,
-		Ip:       ip,
+		UserID:    userID,
+		Username:  username,
+		Role:      role,
+		Ip:        ip,
+		TokenType: "access",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -30,6 +32,28 @@ func GenerateToken(userID int64, username string, role string, ip string, secret
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secretKey))
+}
+
+func GenerateRefreshToken(userID int64, username string, role string, ip string, secretKey string, duration time.Duration) (string, error) {
+	claims := CustomClaims{
+		UserID:    userID,
+		Username:  username,
+		Role:      role,
+		Ip:        ip,
+		TokenType: "refresh",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Subject:   username,
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secretKey))
+}
+
+func GenerateToken(userID int64, username string, role string, ip string, secretKey string, duration time.Duration) (string, error) {
+	return GenerateAccessToken(userID, username, role, ip, secretKey, duration)
 }
 
 func ValidateToken(tokenStr string, secretKey string) (*CustomClaims, error) {
@@ -49,5 +73,16 @@ func ValidateToken(tokenStr string, secretKey string) (*CustomClaims, error) {
 		return nil, errors.New("token không hợp lệ hoặc đã hết hạn")
 	}
 
+	return claims, nil
+}
+
+func ValidateRefreshToken(tokenStr string, secretKey string) (*CustomClaims, error) {
+	claims, err := ValidateToken(tokenStr, secretKey)
+	if err != nil {
+		return nil, err
+	}
+	if claims.TokenType != "refresh" {
+		return nil, errors.New("token không phải là refresh token hợp lệ")
+	}
 	return claims, nil
 }

@@ -22,4 +22,6 @@ var (
 	ErrPasswordTooShort           = errors.New("mật khẩu phải có độ dài từ 8 đến 72 ký tự")
 	ErrSystemUserCannotDelete     = errors.New("không thể xóa tài khoản quản trị hệ thống")
 	ErrCannotDeleteSelf           = errors.New("không thể tự xóa tài khoản của chính mình")
+	ErrRoleLocked                 = errors.New("vai trò của người dùng đã bị vô hiệu hóa")
+	ErrInvalidRefreshToken        = errors.New("refresh token không hợp lệ hoặc đã hết hạn")
 )

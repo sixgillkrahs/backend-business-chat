@@ -17,6 +17,7 @@ const (
 	KeyErrInvalidEmail       = "err.invalid_email"
 	KeyErrPermissionNotFound = "err.permission_not_found"
 	KeyErrInvalidID          = "err.invalid_id"
+	KeyErrInvalidRefreshToken = "err.invalid_refresh_token"
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 			KeyErrInvalidEmail:       "Email không hợp lệ",
 			KeyErrPermissionNotFound: "Permission không tồn tại trong hệ thống",
 			KeyErrInvalidID:          "ID không hợp lệ",
+			KeyErrInvalidRefreshToken: "Refresh token không hợp lệ hoặc đã hết hạn",
 
 			"Success":               "Thành công",
 			"Created successfully":  "Tạo thành công",
@@ -71,6 +73,10 @@ var (
 			"không thể xóa tài khoản quản trị hệ thống": "Không thể xóa tài khoản quản trị hệ thống",
 			"không thể tự xóa tài khoản của chính mình": "Không thể tự xóa tài khoản của chính mình",
 			"ID người dùng không hợp lệ": "ID người dùng không hợp lệ",
+			"vai trò của người dùng đã bị vô hiệu hóa": "Vai trò của người dùng đã bị vô hiệu hóa",
+			"refresh token không hợp lệ hoặc đã hết hạn": "Refresh token không hợp lệ hoặc đã hết hạn",
+			"Refresh token không được để trống": "Refresh token không được để trống",
+			"Làm mới token thành công": "Làm mới token thành công",
 		},
 		"en": {
 			KeySuccess:             "Success",
@@ -86,6 +92,7 @@ var (
 			KeyErrInvalidEmail:       "Invalid email address",
 			KeyErrPermissionNotFound: "Permission not found",
 			KeyErrInvalidID:          "Invalid ID",
+			KeyErrInvalidRefreshToken: "Invalid or expired refresh token",
 
 			"Success":               "Success",
 			"Created successfully":  "Created successfully",
@@ -121,6 +128,10 @@ var (
 			"không thể xóa tài khoản quản trị hệ thống": "Cannot delete system administrator account",
 			"không thể tự xóa tài khoản của chính mình": "Cannot delete your own account",
 			"ID người dùng không hợp lệ": "Invalid user ID",
+			"vai trò của người dùng đã bị vô hiệu hóa": "User role has been disabled",
+			"refresh token không hợp lệ hoặc đã hết hạn": "Invalid or expired refresh token",
+			"Refresh token không được để trống": "Refresh token is required",
+			"Làm mới token thành công": "Token refreshed successfully",
 		},
 	}
 )

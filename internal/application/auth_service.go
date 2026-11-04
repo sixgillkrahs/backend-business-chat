@@ -102,28 +102,221 @@ func (s *AuthService) CountPolicies(ctx context.Context, search string) (int64, 
 	return s.policyRepo.Count(ctx, search)
 }
 
-func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest, lang string, ip string) (string, error) {
-	auth, err := s.authRepo.FindByUsername(ctx, req.Username)
+func (s *AuthService) GetConfig() *config.Config {
+	return s.config
+}
+
+func (s *AuthService) Login(ctx context.Context, req dto.LoginRequest, lang string, ip string) (*dto.LoginResponse, error) {
+	username := strings.TrimSpace(req.Username)
+	password := req.Password
+
+	const dummyBcryptHash = "$2a$10$7EqJtq98hPqEX7fNZaFWoO.8/k0a5d4gB9eG4eX5YvG4b.8s4Z0K6"
+
+	if len(username) < 3 || len(username) > 50 || len(password) < 6 || len(password) > 72 {
+		_ = utils.CheckPasswordHash(password, dummyBcryptHash)
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	auth, err := s.authRepo.FindByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
-			return "", domain.ErrInvalidCredentials
+			_ = utils.CheckPasswordHash(password, dummyBcryptHash)
+			return nil, domain.ErrInvalidCredentials
 		}
-		return "", err
+		return nil, err
 	}
 
-	if !utils.CheckPasswordHash(req.Password, auth.PasswordHash) {
-		return "", domain.ErrInvalidCredentials
+	if !utils.CheckPasswordHash(password, auth.PasswordHash) {
+		return nil, domain.ErrInvalidCredentials
 	}
 
-	if !auth.IsActive {
-		return "", domain.ErrUserLocked
+	if !auth.IsActive || auth.IsDeleted {
+		return nil, domain.ErrUserLocked
 	}
-	duration := time.Duration(s.config.Server.Jwt.Duration) * time.Minute
-	accessToken, err := utils.GenerateToken(int64(auth.UserId), auth.Username, strconv.Itoa(auth.RoleId), ip, s.config.Server.Jwt.SecretKey, duration)
+
+	var userResp *dto.UserLoginResponse
+	var permissions []domain.Permission
+
+	if s.userRepo != nil && auth.UserId > 0 {
+		user, err := s.userRepo.FindByID(ctx, auth.UserId)
+		if err != nil {
+			return nil, err
+		}
+		if user == nil || user.IsDeleted {
+			return nil, domain.ErrInvalidCredentials
+		}
+		if !user.IsActive {
+			return nil, domain.ErrUserLocked
+		}
+
+		userResp = &dto.UserLoginResponse{
+			ID:        user.ID,
+			Username:  user.Username,
+			Email:     user.Email,
+			FullName:  user.FullName,
+			AvatarURL: user.AvatarURL,
+		}
+	}
+
+	// Fetch and verify linked role & permissions
+	var roleResp *dto.RoleResponse
+	roleClaim := strconv.Itoa(auth.RoleId)
+
+	if s.roleRepo != nil && auth.RoleId > 0 {
+		role, err := s.roleRepo.GetRoleById(ctx, auth.RoleId)
+		if err != nil {
+			return nil, err
+		}
+		if role != nil {
+			if !role.IsActive {
+				return nil, domain.ErrRoleLocked
+			}
+			roleResp = &dto.RoleResponse{
+				ID:          role.ID,
+				Name:        role.Name,
+				Description: role.Description,
+				IsActive:    role.IsActive,
+				IsSystem:    role.IsSystem,
+			}
+			permissions = role.Permissions
+		}
+	}
+
+	if userResp != nil {
+		userResp.Role = roleResp
+		userResp.Permissions = permissions
+	}
+
+	duration := 15 * time.Minute
+	if s.config != nil && s.config.Server.Jwt.Duration > 0 {
+		duration = time.Duration(s.config.Server.Jwt.Duration) * time.Minute
+	}
+
+	secretKey := "secret"
+	if s.config != nil && s.config.Server.Jwt.SecretKey != "" {
+		secretKey = s.config.Server.Jwt.SecretKey
+	}
+
+	accessToken, err := utils.GenerateAccessToken(int64(auth.UserId), auth.Username, roleClaim, ip, secretKey, duration)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return accessToken, nil
+
+	refreshDuration := 7 * 24 * time.Hour
+	refreshToken, err := utils.GenerateRefreshToken(int64(auth.UserId), auth.Username, roleClaim, ip, secretKey, refreshDuration)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(duration.Seconds()),
+		User:         userResp,
+	}, nil
+}
+
+func (s *AuthService) RefreshToken(ctx context.Context, tokenStr string, lang string, ip string) (*dto.LoginResponse, error) {
+	tokenStr = strings.TrimSpace(tokenStr)
+	if tokenStr == "" {
+		return nil, domain.ErrInvalidRefreshToken
+	}
+
+	secretKey := "secret"
+	if s.config != nil && s.config.Server.Jwt.SecretKey != "" {
+		secretKey = s.config.Server.Jwt.SecretKey
+	}
+
+	claims, err := utils.ValidateRefreshToken(tokenStr, secretKey)
+	if err != nil {
+		return nil, domain.ErrInvalidRefreshToken
+	}
+
+	auth, err := s.authRepo.FindByUsername(ctx, claims.Username)
+	if err != nil {
+		return nil, domain.ErrInvalidRefreshToken
+	}
+
+	if !auth.IsActive || auth.IsDeleted {
+		return nil, domain.ErrUserLocked
+	}
+
+	var userResp *dto.UserLoginResponse
+	var permissions []domain.Permission
+
+	if s.userRepo != nil && auth.UserId > 0 {
+		user, err := s.userRepo.FindByID(ctx, auth.UserId)
+		if err != nil {
+			return nil, err
+		}
+		if user == nil || user.IsDeleted {
+			return nil, domain.ErrInvalidRefreshToken
+		}
+		if !user.IsActive {
+			return nil, domain.ErrUserLocked
+		}
+
+		userResp = &dto.UserLoginResponse{
+			ID:        user.ID,
+			Username:  user.Username,
+			Email:     user.Email,
+			FullName:  user.FullName,
+			AvatarURL: user.AvatarURL,
+		}
+	}
+
+	var roleResp *dto.RoleResponse
+	roleClaim := strconv.Itoa(auth.RoleId)
+
+	if s.roleRepo != nil && auth.RoleId > 0 {
+		role, err := s.roleRepo.GetRoleById(ctx, auth.RoleId)
+		if err != nil {
+			return nil, err
+		}
+		if role != nil {
+			if !role.IsActive {
+				return nil, domain.ErrRoleLocked
+			}
+			roleResp = &dto.RoleResponse{
+				ID:          role.ID,
+				Name:        role.Name,
+				Description: role.Description,
+				IsActive:    role.IsActive,
+				IsSystem:    role.IsSystem,
+			}
+			permissions = role.Permissions
+		}
+	}
+
+	if userResp != nil {
+		userResp.Role = roleResp
+		userResp.Permissions = permissions
+	}
+
+	duration := 15 * time.Minute
+	if s.config != nil && s.config.Server.Jwt.Duration > 0 {
+		duration = time.Duration(s.config.Server.Jwt.Duration) * time.Minute
+	}
+
+	newAccessToken, err := utils.GenerateAccessToken(int64(auth.UserId), auth.Username, roleClaim, ip, secretKey, duration)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshDuration := 7 * 24 * time.Hour
+	newRefreshToken, err := utils.GenerateRefreshToken(int64(auth.UserId), auth.Username, roleClaim, ip, secretKey, refreshDuration)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.LoginResponse{
+		AccessToken:  newAccessToken,
+		RefreshToken: newRefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(duration.Seconds()),
+		User:         userResp,
+	}, nil
 }
 
 func (s *AuthService) CreatePolicy(ctx context.Context, req dto.PolicyRequest, lang string) (string, error) {

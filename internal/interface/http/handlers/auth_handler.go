@@ -21,16 +21,17 @@ func NewAuthHandler(authService *application.AuthService) AuthHandler {
 }
 
 // Login godoc
-// @Summary      Đăng nhập
-// @Description  Xác thực người dùng và trả về JWT token
+// @Summary      Đăng nhập hệ thống
+// @Description  Xác thực thông tin tài khoản người dùng, chống tấn công dò quét (OWASP Anti-Enumeration & Timing Attack mitigation) và trả về JWT Bearer token kèm thông tin người dùng và quyền hạn
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        body  body      dto.LoginRequest  true  "Thông tin đăng nhập"
-// @Success      200   {object}  map[string]string "access_token"
+// @Param        body  body      dto.LoginRequest   true  "Thông tin đăng nhập"
+// @Success      200   {object}  dto.LoginResponse  "Thông tin phiên đăng nhập, access token và quyền người dùng"
 // @Failure      400   {object}  map[string]string
 // @Failure      401   {object}  map[string]string
 // @Failure      403   {object}  map[string]string
+// @Failure      500   {object}  map[string]string
 // @Router       /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	lang := utils.GetLanguageFromContext(c)
@@ -40,20 +41,93 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		utils.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	token, err := h.AuthService.Login(c.Request.Context(), req, lang, ip)
+
+	resp, err := h.AuthService.Login(c.Request.Context(), req, lang, ip)
 	if err != nil {
 		utils.HandleDomainError(c, err, map[error]int{
 			domain.ErrInvalidCredentials: http.StatusUnauthorized,
 			domain.ErrUserNotFound:       http.StatusUnauthorized,
 			domain.ErrUserLocked:         http.StatusForbidden,
+			domain.ErrRoleLocked:         http.StatusForbidden,
 		})
 		return
 	}
-	c.SetCookie("access_token", token, 86400, "/", "", false, true)
 
-	utils.Success(c, gin.H{
-		"access_token": token,
-	})
+	secure := false
+	if h.AuthService.GetConfig() != nil && h.AuthService.GetConfig().Server.Env == "production" {
+		secure = true
+	}
+	c.SetSameSite(http.SameSiteLaxMode)
+	maxAge := int(resp.ExpiresIn)
+	if maxAge <= 0 {
+		maxAge = 900
+	}
+	c.SetCookie("access_token", resp.AccessToken, maxAge, "/", "", secure, true)
+	if resp.RefreshToken != "" {
+		c.SetCookie("refresh_token", resp.RefreshToken, 7*24*3600, "/v1/api/auth", "", secure, true)
+	}
+
+	utils.Success(c, resp)
+}
+
+// RefreshToken godoc
+// @Summary      Làm mới access token (Refresh Token)
+// @Description  Cấp lại Access Token mới (15 phút) và xoay vòng Refresh Token (Refresh Token Rotation - RTR) theo chuẩn OWASP. Hỗ trợ nhận token qua JSON body hoặc HttpOnly Cookie.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dto.RefreshTokenRequest  false  "Refresh token (tùy chọn nếu đã lưu trong HttpOnly Cookie)"
+// @Success      200   {object}  dto.LoginResponse        "Cặp access token và refresh token mới được cấp kèm thông tin người dùng"
+// @Failure      400   {object}  map[string]string
+// @Failure      401   {object}  map[string]string
+// @Failure      403   {object}  map[string]string
+// @Failure      500   {object}  map[string]string
+// @Router       /auth/refresh-token [post]
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	ip := c.ClientIP()
+
+	var req dto.RefreshTokenRequest
+	_ = c.ShouldBindJSON(&req)
+
+	tokenStr := strings.TrimSpace(req.RefreshToken)
+	if tokenStr == "" {
+		if cookieToken, err := c.Cookie("refresh_token"); err == nil {
+			tokenStr = strings.TrimSpace(cookieToken)
+		}
+	}
+
+	if tokenStr == "" {
+		utils.Error(c, http.StatusBadRequest, utils.Translate(c, "Refresh token không được để trống"))
+		return
+	}
+
+	resp, err := h.AuthService.RefreshToken(c.Request.Context(), tokenStr, lang, ip)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrInvalidRefreshToken: http.StatusUnauthorized,
+			domain.ErrUserNotFound:        http.StatusUnauthorized,
+			domain.ErrUserLocked:          http.StatusForbidden,
+			domain.ErrRoleLocked:          http.StatusForbidden,
+		})
+		return
+	}
+
+	secure := false
+	if h.AuthService.GetConfig() != nil && h.AuthService.GetConfig().Server.Env == "production" {
+		secure = true
+	}
+	c.SetSameSite(http.SameSiteLaxMode)
+	maxAge := int(resp.ExpiresIn)
+	if maxAge <= 0 {
+		maxAge = 900
+	}
+	c.SetCookie("access_token", resp.AccessToken, maxAge, "/", "", secure, true)
+	if resp.RefreshToken != "" {
+		c.SetCookie("refresh_token", resp.RefreshToken, 7*24*3600, "/v1/api/auth", "", secure, true)
+	}
+
+	utils.Success(c, resp)
 }
 
 // ListActions godoc

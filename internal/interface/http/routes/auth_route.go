@@ -10,6 +10,7 @@ func AuthRoutes(r *gin.RouterGroup, authHandler handlers.AuthHandler) {
 	{
 		//auth
 		api.POST("/login", authHandler.Login)
+		api.POST("/refresh-token", authHandler.RefreshToken)
 
 		api.GET("/actions", authHandler.ListActions)
 		api.GET("/resources", authHandler.ListResources)

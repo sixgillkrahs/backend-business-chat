@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sixgillkrahs/backend-business-chat/internal/application"
 	"github.com/sixgillkrahs/backend-business-chat/internal/application/dto"
@@ -145,9 +146,34 @@ func (m *mockUserRepo) Count(ctx context.Context, search string) (int64, error) 
 	return count, nil
 }
 
+type mockAuthRepo struct {
+	auths map[string]*domain.Auth
+}
+
+func (m *mockAuthRepo) FindByUsername(ctx context.Context, username string) (domain.Auth, error) {
+	if m.auths != nil {
+		if a, ok := m.auths[username]; ok {
+			return *a, nil
+		}
+	}
+	return domain.Auth{}, domain.ErrUserNotFound
+}
+
 func setupService(roleRepo domain.RoleRepository, userRepo domain.UserRepository) *application.AuthService {
 	cfg := &config.Config{}
 	return application.NewAuthService(cfg, nil, nil, nil, nil, nil, roleRepo, userRepo)
+}
+
+func setupFullService(authRepo domain.AuthRepository, roleRepo domain.RoleRepository, userRepo domain.UserRepository) *application.AuthService {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Jwt: config.JWT{
+				SecretKey: "supersecretkeyforunittestingjwttoken",
+				Duration:  60,
+			},
+		},
+	}
+	return application.NewAuthService(cfg, nil, authRepo, nil, nil, nil, roleRepo, userRepo)
 }
 
 func TestCreateUser_Success(t *testing.T) {
@@ -739,3 +765,281 @@ func TestDeleteUserById_InvalidID(t *testing.T) {
 		t.Fatalf("expected ErrUserNotFound for id <= 0, got %v", err)
 	}
 }
+
+func TestLogin_Success(t *testing.T) {
+	hashedPassword, _ := utils.HashPassword("123456aA@1")
+	auth := &domain.Auth{
+		UserId:       1,
+		Username:     "admin",
+		PasswordHash: hashedPassword,
+		RoleId:       1,
+		IsActive:     true,
+		IsDeleted:    false,
+	}
+	user := &domain.User{
+		ID:        1,
+		Username:  "admin",
+		Email:     "admin@example.com",
+		FullName:  "System Administrator",
+		IsActive:  true,
+		IsDeleted: false,
+	}
+	role := &domain.Role{
+		ID:       1,
+		Name:     "Admin",
+		IsActive: true,
+		IsSystem: true,
+		Permissions: []domain.Permission{
+			{ID: 1, Name: "USER_READ"},
+		},
+	}
+
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{"admin": auth}}
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{1: user}}
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{1: role}}
+	service := setupFullService(authRepo, roleRepo, userRepo)
+
+	resp, err := service.Login(context.Background(), dto.LoginRequest{
+		Username: "admin",
+		Password: "123456aA@1",
+	}, "vi", "127.0.0.1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if resp == nil || resp.AccessToken == "" {
+		t.Fatalf("expected non-empty access token")
+	}
+	if resp.RefreshToken == "" {
+		t.Fatalf("expected non-empty refresh token")
+	}
+	if resp.TokenType != "Bearer" {
+		t.Errorf("expected TokenType 'Bearer', got %s", resp.TokenType)
+	}
+	if resp.ExpiresIn <= 0 {
+		t.Errorf("expected positive ExpiresIn, got %d", resp.ExpiresIn)
+	}
+	if resp.User == nil || resp.User.Username != "admin" {
+		t.Errorf("expected User.Username 'admin', got %v", resp.User)
+	}
+	if resp.User.Role == nil || resp.User.Role.Name != "Admin" {
+		t.Errorf("expected User.Role.Name 'Admin'")
+	}
+	if len(resp.User.Permissions) != 1 {
+		t.Errorf("expected 1 permission, got %d", len(resp.User.Permissions))
+	}
+}
+
+func TestLogin_InvalidUsername(t *testing.T) {
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{}}
+	service := setupFullService(authRepo, &mockRoleRepo{}, &mockUserRepo{})
+
+	_, err := service.Login(context.Background(), dto.LoginRequest{
+		Username: "nonexistent",
+		Password: "Password123@",
+	}, "vi", "127.0.0.1")
+	if err != domain.ErrInvalidCredentials {
+		t.Fatalf("expected ErrInvalidCredentials for non-existent user, got %v", err)
+	}
+}
+
+func TestLogin_InvalidPassword(t *testing.T) {
+	hashedPassword, _ := utils.HashPassword("CorrectPassword123@")
+	auth := &domain.Auth{
+		UserId:       1,
+		Username:     "testuser",
+		PasswordHash: hashedPassword,
+		RoleId:       1,
+		IsActive:     true,
+	}
+
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{"testuser": auth}}
+	service := setupFullService(authRepo, &mockRoleRepo{}, &mockUserRepo{})
+
+	_, err := service.Login(context.Background(), dto.LoginRequest{
+		Username: "testuser",
+		Password: "WrongPassword123@",
+	}, "vi", "127.0.0.1")
+	if err != domain.ErrInvalidCredentials {
+		t.Fatalf("expected ErrInvalidCredentials for wrong password, got %v", err)
+	}
+}
+
+func TestLogin_UserLocked(t *testing.T) {
+	hashedPassword, _ := utils.HashPassword("Password123@")
+	auth := &domain.Auth{
+		UserId:       1,
+		Username:     "lockeduser",
+		PasswordHash: hashedPassword,
+		RoleId:       1,
+		IsActive:     false, // Locked
+	}
+
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{"lockeduser": auth}}
+	service := setupFullService(authRepo, &mockRoleRepo{}, &mockUserRepo{})
+
+	_, err := service.Login(context.Background(), dto.LoginRequest{
+		Username: "lockeduser",
+		Password: "Password123@",
+	}, "vi", "127.0.0.1")
+	if err != domain.ErrUserLocked {
+		t.Fatalf("expected ErrUserLocked for inactive auth, got %v", err)
+	}
+}
+
+func TestLogin_RoleInactive(t *testing.T) {
+	hashedPassword, _ := utils.HashPassword("Password123@")
+	auth := &domain.Auth{
+		UserId:       1,
+		Username:     "roleuser",
+		PasswordHash: hashedPassword,
+		RoleId:       2,
+		IsActive:     true,
+	}
+	user := &domain.User{ID: 1, Username: "roleuser", IsActive: true}
+	role := &domain.Role{ID: 2, Name: "DisabledRole", IsActive: false}
+
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{"roleuser": auth}}
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{1: user}}
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{2: role}}
+	service := setupFullService(authRepo, roleRepo, userRepo)
+
+	_, err := service.Login(context.Background(), dto.LoginRequest{
+		Username: "roleuser",
+		Password: "Password123@",
+	}, "vi", "127.0.0.1")
+	if err != domain.ErrRoleLocked {
+		t.Fatalf("expected ErrRoleLocked for inactive role, got %v", err)
+	}
+}
+
+func TestRefreshToken_Success(t *testing.T) {
+	auth := &domain.Auth{
+		UserId:    1,
+		Username:  "admin",
+		RoleId:    1,
+		IsActive:  true,
+		IsDeleted: false,
+	}
+	user := &domain.User{
+		ID:        1,
+		Username:  "admin",
+		Email:     "admin@example.com",
+		FullName:  "System Administrator",
+		IsActive:  true,
+		IsDeleted: false,
+	}
+	role := &domain.Role{
+		ID:       1,
+		Name:     "Admin",
+		IsActive: true,
+		Permissions: []domain.Permission{
+			{ID: 1, Name: "USER_READ"},
+		},
+	}
+
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{"admin": auth}}
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{1: user}}
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{1: role}}
+	service := setupFullService(authRepo, roleRepo, userRepo)
+
+	// Generate a valid refresh token using utils.GenerateRefreshToken
+	refreshToken, err := utils.GenerateRefreshToken(1, "admin", "Admin", "127.0.0.1", "supersecretkeyforunittestingjwttoken", 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("failed to generate refresh token: %v", err)
+	}
+
+	resp, err := service.RefreshToken(context.Background(), refreshToken, "vi", "127.0.0.1")
+	if err != nil {
+		t.Fatalf("expected nil error on refresh, got: %v", err)
+	}
+	if resp == nil || resp.AccessToken == "" {
+		t.Fatalf("expected non-empty access token")
+	}
+	if resp.RefreshToken == "" {
+		t.Fatalf("expected non-empty rotated refresh token")
+	}
+	if resp.User == nil || resp.User.Username != "admin" {
+		t.Errorf("expected username admin, got %v", resp.User)
+	}
+	if len(resp.User.Permissions) != 1 {
+		t.Errorf("expected 1 permission, got %d", len(resp.User.Permissions))
+	}
+}
+
+func TestRefreshToken_InvalidToken(t *testing.T) {
+	service := setupFullService(&mockAuthRepo{}, &mockRoleRepo{}, &mockUserRepo{})
+
+	_, err := service.RefreshToken(context.Background(), "invalid.token.string", "vi", "127.0.0.1")
+	if err != domain.ErrInvalidRefreshToken {
+		t.Fatalf("expected ErrInvalidRefreshToken, got %v", err)
+	}
+}
+
+func TestRefreshToken_AccessTokenRejectedAsRefreshToken(t *testing.T) {
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{
+		"admin": {UserId: 1, Username: "admin", RoleId: 1, IsActive: true},
+	}}
+	service := setupFullService(authRepo, &mockRoleRepo{}, &mockUserRepo{})
+
+	// Generate an ACCESS token
+	accessToken, err := utils.GenerateAccessToken(1, "admin", "Admin", "127.0.0.1", "supersecretkeyforunittestingjwttoken", 15*time.Minute)
+	if err != nil {
+		t.Fatalf("failed to generate access token: %v", err)
+	}
+
+	// Calling RefreshToken with an Access Token must fail with ErrInvalidRefreshToken
+	_, err = service.RefreshToken(context.Background(), accessToken, "vi", "127.0.0.1")
+	if err != domain.ErrInvalidRefreshToken {
+		t.Fatalf("expected ErrInvalidRefreshToken when access token is provided as refresh token, got %v", err)
+	}
+}
+
+func TestRefreshToken_UserLocked(t *testing.T) {
+	auth := &domain.Auth{
+		UserId:    1,
+		Username:  "lockeduser",
+		RoleId:    1,
+		IsActive:  false, // Locked
+		IsDeleted: false,
+	}
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{"lockeduser": auth}}
+	service := setupFullService(authRepo, &mockRoleRepo{}, &mockUserRepo{})
+
+	refreshToken, err := utils.GenerateRefreshToken(1, "lockeduser", "User", "127.0.0.1", "supersecretkeyforunittestingjwttoken", 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("failed to generate refresh token: %v", err)
+	}
+
+	_, err = service.RefreshToken(context.Background(), refreshToken, "vi", "127.0.0.1")
+	if err != domain.ErrUserLocked {
+		t.Fatalf("expected ErrUserLocked, got %v", err)
+	}
+}
+
+func TestRefreshToken_RoleInactive(t *testing.T) {
+	auth := &domain.Auth{
+		UserId:    1,
+		Username:  "roleuser",
+		RoleId:    2,
+		IsActive:  true,
+		IsDeleted: false,
+	}
+	user := &domain.User{ID: 1, Username: "roleuser", IsActive: true}
+	role := &domain.Role{ID: 2, Name: "DisabledRole", IsActive: false}
+
+	authRepo := &mockAuthRepo{auths: map[string]*domain.Auth{"roleuser": auth}}
+	userRepo := &mockUserRepo{usersByID: map[int]*domain.User{1: user}}
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{2: role}}
+	service := setupFullService(authRepo, roleRepo, userRepo)
+
+	refreshToken, err := utils.GenerateRefreshToken(1, "roleuser", "DisabledRole", "127.0.0.1", "supersecretkeyforunittestingjwttoken", 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("failed to generate refresh token: %v", err)
+	}
+
+	_, err = service.RefreshToken(context.Background(), refreshToken, "vi", "127.0.0.1")
+	if err != domain.ErrRoleLocked {
+		t.Fatalf("expected ErrRoleLocked, got %v", err)
+	}
+}
+

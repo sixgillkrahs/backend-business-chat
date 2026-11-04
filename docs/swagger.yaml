@@ -233,12 +233,29 @@ definitions:
   dto.LoginRequest:
     properties:
       password:
+        maxLength: 72
+        minLength: 6
         type: string
       username:
+        maxLength: 50
+        minLength: 3
         type: string
     required:
     - password
     - username
+    type: object
+  dto.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+      user:
+        $ref: '#/definitions/dto.UserLoginResponse'
     type: object
   dto.PermissionPaginationResponse:
     properties:
@@ -286,6 +303,11 @@ definitions:
     - name
     - resource_id
     type: object
+  dto.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
   dto.RolePaginationResponse:
     properties:
       items:
@@ -300,6 +322,23 @@ definitions:
         type: integer
       total_pages:
         type: integer
+    type: object
+  dto.RoleResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_system:
+        type: boolean
+      name:
+        type: string
+      permission_ids:
+        items:
+          type: integer
+        type: array
     type: object
   dto.UpdatePermissionRequest:
     properties:
@@ -375,6 +414,25 @@ definitions:
         minLength: 3
         type: string
     type: object
+  dto.UserLoginResponse:
+    properties:
+      avatar_url:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: integer
+      permissions:
+        items:
+          $ref: '#/definitions/domain.Permission'
+        type: array
+      role:
+        $ref: '#/definitions/dto.RoleResponse'
+      username:
+        type: string
+    type: object
   dto.UserPaginationResponse:
     properties:
       items:
@@ -436,7 +494,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Xác thực người dùng và trả về JWT token
+      description: Xác thực thông tin tài khoản người dùng, chống tấn công dò quét
+        (OWASP Anti-Enumeration & Timing Attack mitigation) và trả về JWT Bearer token
+        kèm thông tin người dùng và quyền hạn
       parameters:
       - description: Thông tin đăng nhập
         in: body
@@ -448,11 +508,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: access_token
+          description: Thông tin phiên đăng nhập, access token và quyền người dùng
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/dto.LoginResponse'
         "400":
           description: Bad Request
           schema:
@@ -471,7 +529,13 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: Đăng nhập
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Đăng nhập hệ thống
       tags:
       - auth
   /auth/permissions:
@@ -878,6 +942,54 @@ paths:
       security:
       - BearerAuth: []
       summary: Cập nhật policy theo ID
+      tags:
+      - auth
+  /auth/refresh-token:
+    post:
+      consumes:
+      - application/json
+      description: Cấp lại Access Token mới (15 phút) và xoay vòng Refresh Token (Refresh
+        Token Rotation - RTR) theo chuẩn OWASP. Hỗ trợ nhận token qua JSON body hoặc
+        HttpOnly Cookie.
+      parameters:
+      - description: Refresh token (tùy chọn nếu đã lưu trong HttpOnly Cookie)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/dto.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Cặp access token và refresh token mới được cấp kèm thông tin
+            người dùng
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Làm mới access token (Refresh Token)
       tags:
       - auth
   /auth/resources:
