@@ -20,6 +20,48 @@ func NewAuthHandler(authService *application.AuthService) AuthHandler {
 	return AuthHandler{AuthService: authService}
 }
 
+// Register godoc
+// @Summary      Đăng ký tài khoản người dùng mới
+// @Description  Tạo tài khoản người dùng mới theo chuẩn bảo mật OWASP ASVS (chống leo thang đặc quyền, chính sách mật khẩu mạnh, chống timing attack và lưu vết lịch sử mật khẩu)
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.RegisterRequest  true  "Thông tin đăng ký tài khoản"
+// @Success      201      {object}  utils.Response{data=domain.User}
+// @Failure      400      {object}  utils.Response
+// @Failure      409      {object}  utils.Response
+// @Failure      500      {object}  utils.Response
+// @Router       /auth/register [post]
+func (h *AuthHandler) Register(c *gin.Context) {
+	lang := utils.GetLanguageFromContext(c)
+	var req dto.RegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	user, err := h.AuthService.Register(c.Request.Context(), req, lang)
+	if err != nil {
+		utils.HandleDomainError(c, err, map[error]int{
+			domain.ErrUsernameDuplicate: http.StatusConflict,
+			domain.ErrEmailDuplicate:    http.StatusConflict,
+			domain.ErrRoleNotFound:      http.StatusBadRequest,
+			domain.ErrPasswordTooShort:  http.StatusBadRequest,
+			domain.ErrPasswordTooWeak:   http.StatusBadRequest,
+			domain.ErrUsernameInvalid:   http.StatusBadRequest,
+			domain.ErrEmailInvalid:      http.StatusBadRequest,
+			domain.ErrFullNameInvalid:   http.StatusBadRequest,
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, utils.Response{
+		Code:    http.StatusCreated,
+		Message: utils.Translate(c, "Đăng ký tài khoản thành công"),
+		Data:    user,
+	})
+}
+
 // Login godoc
 // @Summary      Đăng nhập hệ thống
 // @Description  Xác thực thông tin tài khoản người dùng, chống tấn công dò quét (OWASP Anti-Enumeration & Timing Attack mitigation) và trả về JWT Bearer token kèm thông tin người dùng và quyền hạn
@@ -835,6 +877,7 @@ func (h *AuthHandler) CreateUser(c *gin.Context) {
 			domain.ErrEmailDuplicate:    http.StatusConflict,
 			domain.ErrRoleNotFound:      http.StatusBadRequest,
 			domain.ErrPasswordTooShort:  http.StatusBadRequest,
+			domain.ErrPasswordTooWeak:   http.StatusBadRequest,
 			domain.ErrUsernameInvalid:   http.StatusBadRequest,
 			domain.ErrEmailInvalid:      http.StatusBadRequest,
 			domain.ErrFullNameInvalid:   http.StatusBadRequest,

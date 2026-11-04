@@ -26,13 +26,24 @@ func (m *mockRoleRepo) GetRoleById(ctx context.Context, id int) (*domain.Role, e
 	return nil, nil
 }
 func (m *mockRoleRepo) GetRoleByName(ctx context.Context, name string) (*domain.Role, error) {
+	if m.roles != nil {
+		for _, r := range m.roles {
+			if strings.EqualFold(r.Name, name) {
+				return r, nil
+			}
+		}
+	}
 	return nil, nil
 }
 func (m *mockRoleRepo) CreateWithPermissions(ctx context.Context, role *domain.Role, permissionIDs []int) error {
 	return nil
 }
 func (m *mockRoleRepo) GetRolesPaging(ctx context.Context, search string, offset, limit int) ([]domain.Role, error) {
-	return nil, nil
+	var result []domain.Role
+	for _, r := range m.roles {
+		result = append(result, *r)
+	}
+	return result, nil
 }
 func (m *mockRoleRepo) Count(ctx context.Context, search string) (int64, error) { return 0, nil }
 func (m *mockRoleRepo) ValidatePermissionIDs(ctx context.Context, permissionIDs []int) (bool, error) {
@@ -1040,6 +1051,160 @@ func TestRefreshToken_RoleInactive(t *testing.T) {
 	_, err = service.RefreshToken(context.Background(), refreshToken, "vi", "127.0.0.1")
 	if err != domain.ErrRoleLocked {
 		t.Fatalf("expected ErrRoleLocked, got %v", err)
+	}
+}
+
+func TestRegister_Success(t *testing.T) {
+	roleRepo := &mockRoleRepo{
+		roles: map[int]*domain.Role{
+			2: {ID: 2, Name: "User", IsActive: true},
+		},
+	}
+	userRepo := &mockUserRepo{
+		usersByUsername: make(map[string]*domain.User),
+		usersByEmail:    make(map[string]*domain.User),
+	}
+	service := setupService(roleRepo, userRepo)
+
+	req := dto.RegisterRequest{
+		Username: "newregistereduser",
+		Email:    "registered@example.com",
+		Password: "SecurePassword123@",
+		FullName: "Registered User",
+	}
+
+	user, err := service.Register(context.Background(), req, "vi")
+	if err != nil {
+		t.Fatalf("expected nil error, got: %v", err)
+	}
+	if user == nil || user.ID != 100 {
+		t.Errorf("expected user ID 100, got: %v", user)
+	}
+	if user.Username != "newregistereduser" {
+		t.Errorf("expected username newregistereduser, got: %s", user.Username)
+	}
+	if user.Email != "registered@example.com" {
+		t.Errorf("expected email registered@example.com, got: %s", user.Email)
+	}
+	if user.Role == nil || user.Role.ID != 2 {
+		t.Errorf("expected role ID 2, got: %v", user.Role)
+	}
+	if user.RoleID == nil || *user.RoleID != 2 {
+		t.Errorf("expected RoleID 2, got: %v", user.RoleID)
+	}
+	if !utils.CheckPasswordHash("SecurePassword123@", userRepo.createdHash) {
+		t.Errorf("password hash does not match original password via bcrypt")
+	}
+}
+
+func TestRegister_WeakPassword(t *testing.T) {
+	roleRepo := &mockRoleRepo{
+		roles: map[int]*domain.Role{2: {ID: 2, Name: "User", IsActive: true}},
+	}
+	userRepo := &mockUserRepo{}
+	service := setupService(roleRepo, userRepo)
+
+	req := dto.RegisterRequest{
+		Username: "validuser",
+		Email:    "valid@example.com",
+		Password: "alllowercasepassword",
+		FullName: "Valid Name",
+	}
+
+	_, err := service.Register(context.Background(), req, "vi")
+	if err != domain.ErrPasswordTooWeak {
+		t.Fatalf("expected ErrPasswordTooWeak, got: %v", err)
+	}
+}
+
+func TestRegister_PasswordTooShort(t *testing.T) {
+	roleRepo := &mockRoleRepo{
+		roles: map[int]*domain.Role{2: {ID: 2, Name: "User", IsActive: true}},
+	}
+	userRepo := &mockUserRepo{}
+	service := setupService(roleRepo, userRepo)
+
+	req := dto.RegisterRequest{
+		Username: "validuser",
+		Email:    "valid@example.com",
+		Password: "123",
+		FullName: "Valid Name",
+	}
+
+	_, err := service.Register(context.Background(), req, "vi")
+	if err != domain.ErrPasswordTooShort {
+		t.Fatalf("expected ErrPasswordTooShort, got: %v", err)
+	}
+}
+
+func TestRegister_DuplicateUsername(t *testing.T) {
+	roleRepo := &mockRoleRepo{
+		roles: map[int]*domain.Role{2: {ID: 2, Name: "User", IsActive: true}},
+	}
+	userRepo := &mockUserRepo{
+		usersByUsername: map[string]*domain.User{
+			"existinguser": {ID: 1, Username: "existinguser"},
+		},
+		usersByEmail: make(map[string]*domain.User),
+	}
+	service := setupService(roleRepo, userRepo)
+
+	req := dto.RegisterRequest{
+		Username: "existinguser",
+		Email:    "new@example.com",
+		Password: "SecurePassword123@",
+		FullName: "New User",
+	}
+
+	_, err := service.Register(context.Background(), req, "vi")
+	if err != domain.ErrUsernameDuplicate {
+		t.Fatalf("expected ErrUsernameDuplicate, got: %v", err)
+	}
+}
+
+func TestRegister_DuplicateEmail(t *testing.T) {
+	roleRepo := &mockRoleRepo{
+		roles: map[int]*domain.Role{2: {ID: 2, Name: "User", IsActive: true}},
+	}
+	userRepo := &mockUserRepo{
+		usersByUsername: make(map[string]*domain.User),
+		usersByEmail: map[string]*domain.User{
+			"existing@example.com": {ID: 1, Email: "existing@example.com"},
+		},
+	}
+	service := setupService(roleRepo, userRepo)
+
+	req := dto.RegisterRequest{
+		Username: "brandnewuser",
+		Email:    "existing@example.com",
+		Password: "SecurePassword123@",
+		FullName: "New User",
+	}
+
+	_, err := service.Register(context.Background(), req, "vi")
+	if err != domain.ErrEmailDuplicate {
+		t.Fatalf("expected ErrEmailDuplicate, got: %v", err)
+	}
+}
+
+func TestRegister_NoDefaultRole(t *testing.T) {
+	roleRepo := &mockRoleRepo{roles: map[int]*domain.Role{}}
+	userRepo := &mockUserRepo{
+		usersByUsername: make(map[string]*domain.User),
+		usersByEmail:    make(map[string]*domain.User),
+	}
+	service := setupService(roleRepo, userRepo)
+
+	req := dto.RegisterRequest{
+		Username: "brandnewuser",
+		Email:    "brandnew@example.com",
+		Password: "SecurePassword123@",
+		FullName: "New User",
+	}
+
+	_, err := service.Register(context.Background(), req, "vi")
+	if err != domain.ErrRoleNotFound {
+		t.Fatalf("expected ErrRoleNotFound when no active roles exist, got: %v", err)
 	}
 }
 

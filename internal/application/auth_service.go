@@ -846,6 +846,104 @@ func (s *AuthService) DeactivateRoleById(ctx context.Context, id int, lang strin
 	return err
 }
 
+func (s *AuthService) getDefaultRole(ctx context.Context) (*domain.Role, error) {
+	if s.roleRepo == nil {
+		return nil, domain.ErrRoleNotFound
+	}
+
+	for _, name := range []string{"User", "USER", "Member", "ROLE_USER"} {
+		role, err := s.roleRepo.GetRoleByName(ctx, name)
+		if err == nil && role != nil && role.IsActive {
+			return role, nil
+		}
+	}
+
+	roles, err := s.roleRepo.GetRolesPaging(ctx, "", 0, 50)
+	if err == nil {
+		for _, r := range roles {
+			if r.IsActive && !r.IsSystem {
+				return &r, nil
+			}
+		}
+		for _, r := range roles {
+			if r.IsActive {
+				return &r, nil
+			}
+		}
+	}
+
+	return nil, domain.ErrRoleNotFound
+}
+
+func (s *AuthService) Register(ctx context.Context, req dto.RegisterRequest, lang string) (*domain.User, error) {
+	username := strings.TrimSpace(req.Username)
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	fullName := strings.TrimSpace(req.FullName)
+
+	if len(req.Password) < 8 || len(req.Password) > 72 {
+		return nil, domain.ErrPasswordTooShort
+	}
+	if !utils.IsPasswordComplex(req.Password) {
+		return nil, domain.ErrPasswordTooWeak
+	}
+
+	role, err := s.getDefaultRole(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil || !role.IsActive {
+		return nil, domain.ErrRoleNotFound
+	}
+
+	existingUser, err := s.userRepo.FindByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	if existingUser != nil {
+		return nil, domain.ErrUsernameDuplicate
+	}
+
+	existingEmail, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if existingEmail != nil {
+		return nil, domain.ErrEmailDuplicate
+	}
+
+	passwordHash, err := utils.HashPassword(req.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &domain.User{
+		Username:    username,
+		Email:       email,
+		FullName:    fullName,
+		AvatarURL:   strings.TrimSpace(req.AvatarURL),
+		PhoneNumber: strings.TrimSpace(req.PhoneNumber),
+		Address:     strings.TrimSpace(req.Address),
+		RoleID:      &role.ID,
+		IsActive:    true,
+		IsDeleted:   false,
+		CreatedBy:   "register",
+		UpdatedBy:   "register",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := user.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := s.userRepo.CreateWithAuth(ctx, user, passwordHash); err != nil {
+		return nil, err
+	}
+
+	user.Role = role
+	return user, nil
+}
+
 func (s *AuthService) CreateUser(ctx context.Context, req dto.CreateUserRequest, lang string, createdBy string) (*domain.User, error) {
 	username := strings.TrimSpace(req.Username)
 	email := strings.ToLower(strings.TrimSpace(req.Email))
@@ -853,6 +951,9 @@ func (s *AuthService) CreateUser(ctx context.Context, req dto.CreateUserRequest,
 
 	if len(req.Password) < 8 || len(req.Password) > 72 {
 		return nil, domain.ErrPasswordTooShort
+	}
+	if !utils.IsPasswordComplex(req.Password) {
+		return nil, domain.ErrPasswordTooWeak
 	}
 
 	if createdBy == "" {

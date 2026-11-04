@@ -3,6 +3,19 @@
 ### 1. Ping Server
 GET {{baseUrl}}/v1/api/ping HTTP/1.1
 
+### 1.1 Register Account (Public / Self-service)
+POST {{baseUrl}}/v1/api/auth/register HTTP/1.1
+Content-Type: application/json
+
+{
+  "username": "newuser01",
+  "email": "newuser01@example.com",
+  "password": "Password123@!",
+  "full_name": "New User Full Name",
+  "phone_number": "0912345678",
+  "address": "123 Main Street"
+}
+
 ### 2. Login
 POST {{baseUrl}}/v1/api/auth/login HTTP/1.1
 Content-Type: application/json

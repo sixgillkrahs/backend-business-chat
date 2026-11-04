@@ -112,7 +112,7 @@ func (r *roleRepository) UpdateWithPermissions(ctx context.Context, role *domain
 }
 
 func (r *roleRepository) GetRoleByName(ctx context.Context, name string) (*domain.Role, error) {
-	query := `SELECT id, name, COALESCE(description, ''), isactive, issystem, created_at, updated_at FROM roles WHERE name = $1`
+	query := `SELECT id, name, COALESCE(description, ''), isactive, issystem, created_at, updated_at FROM roles WHERE LOWER(name) = LOWER($1)`
 	var role domain.Role
 	err := r.db.Pool.QueryRow(ctx, query, name).Scan(&role.ID, &role.Name, &role.Description, &role.IsActive, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt)
 	if err != nil {

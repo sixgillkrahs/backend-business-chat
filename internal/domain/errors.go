@@ -20,6 +20,7 @@ var (
 	ErrUsernameDuplicate       = errors.New("tên đăng nhập đã tồn tại trong hệ thống")
 	ErrEmailDuplicate          = errors.New("địa chỉ email đã tồn tại trong hệ thống")
 	ErrPasswordTooShort           = errors.New("mật khẩu phải có độ dài từ 8 đến 72 ký tự")
+	ErrPasswordTooWeak            = errors.New("mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường, 1 chữ số và 1 ký tự đặc biệt")
 	ErrSystemUserCannotDelete     = errors.New("không thể xóa tài khoản quản trị hệ thống")
 	ErrCannotDeleteSelf           = errors.New("không thể tự xóa tài khoản của chính mình")
 	ErrRoleLocked                 = errors.New("vai trò của người dùng đã bị vô hiệu hóa")

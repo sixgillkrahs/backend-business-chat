@@ -18,6 +18,7 @@ const (
 	KeyErrPermissionNotFound = "err.permission_not_found"
 	KeyErrInvalidID          = "err.invalid_id"
 	KeyErrInvalidRefreshToken = "err.invalid_refresh_token"
+	KeyErrPasswordTooWeak    = "err.password_too_weak"
 )
 
 var (
@@ -77,6 +78,8 @@ var (
 			"refresh token không hợp lệ hoặc đã hết hạn": "Refresh token không hợp lệ hoặc đã hết hạn",
 			"Refresh token không được để trống": "Refresh token không được để trống",
 			"Làm mới token thành công": "Làm mới token thành công",
+			"mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường, 1 chữ số và 1 ký tự đặc biệt": "Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường, 1 chữ số và 1 ký tự đặc biệt",
+			"Đăng ký tài khoản thành công": "Đăng ký tài khoản thành công",
 		},
 		"en": {
 			KeySuccess:             "Success",
@@ -93,6 +96,7 @@ var (
 			KeyErrPermissionNotFound: "Permission not found",
 			KeyErrInvalidID:          "Invalid ID",
 			KeyErrInvalidRefreshToken: "Invalid or expired refresh token",
+			KeyErrPasswordTooWeak:    "Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character",
 
 			"Success":               "Success",
 			"Created successfully":  "Created successfully",
@@ -132,6 +136,8 @@ var (
 			"refresh token không hợp lệ hoặc đã hết hạn": "Invalid or expired refresh token",
 			"Refresh token không được để trống": "Refresh token is required",
 			"Làm mới token thành công": "Token refreshed successfully",
+			"mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường, 1 chữ số và 1 ký tự đặc biệt": "Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character",
+			"Đăng ký tài khoản thành công": "Account registered successfully",
 		},
 	}
 )
